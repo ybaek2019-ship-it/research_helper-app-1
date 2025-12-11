@@ -1,5 +1,9 @@
 .streamlit/secrets.toml
 
+# Environment variables and API keys
+.env
+config/api_keys.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

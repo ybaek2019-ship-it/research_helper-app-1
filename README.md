@@ -1,19 +1,67 @@
-# 🎈 Blank app template
+# 📚 AI 학술 논문 분석 도구
 
-A simple Streamlit app template for you to modify!
+GPT-4 기반 질적연구방법론 대학원생을 위한 지능형 PDF 분석 시스템
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+## 주요 기능
 
-### How to run it on your own machine
+### 📊 기본 분석 기능
+- 구조화된 요약 생성 (연구 목적, 방법, 결과, 논의)
+- TF-IDF 키워드 분석
+- 참고문헌 심층 분석 (연도별 분포, 저자 수, 출판물 유형)
+- 학술 및 방법론 용어 추출
 
-1. Install the requirements
+### 🤖 AI 고급 분석 (선택적)
+- GPT-4 지능형 요약
+- 질적연구 주제(Theme) 자동 추출
+- 연구질문 및 가설 식별
+- 다중 논문 비교 분석
 
+## 사용 방법
+
+### 설치 및 실행
+
+1. 필요한 패키지 설치:
+   ```bash
+   pip install -r requirements.txt
    ```
-   $ pip install -r requirements.txt
+
+2. 앱 실행:
+   ```bash
+   streamlit run streamlit_app.py
    ```
 
-2. Run the app
+### PDF 업로드 가이드
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+**권장 파일 크기:**
+- 최적: 10MB 이하 (빠른 처리)
+- 최대: 20MB
+
+**파일이 너무 클 경우 (413 에러):**
+1. [smallpdf.com](https://smallpdf.com/kr/compress-pdf)에서 PDF 압축
+2. 불필요한 페이지 제거
+3. Adobe Acrobat의 "파일 크기 줄이기" 기능 사용
+
+## 기술 스택
+
+- **Streamlit**: 웹 인터페이스
+- **PyPDF**: PDF 텍스트 추출
+- **scikit-learn**: TF-IDF 키워드 분석
+- **OpenAI GPT-4**: AI 기반 분석 (선택적)
+
+## 제한사항
+
+- 최대 파일 크기: 20MB
+- 지원 형식: PDF만 가능
+- GPT 분석은 API 할당량에 따라 제한될 수 있음
+- 영문 논문에 최적화 (한글 논문은 부분적 지원)
+
+## 문제 해결
+
+### 413 에러 (파일 너무 큼)
+→ PDF를 압축하거나 페이지 수를 줄이세요.
+
+### GPT 분석 실패
+→ API 할당량 확인 또는 기본 분석 결과를 사용하세요.
+
+### 텍스트 추출 실패
+→ PDF가 이미지 기반인지 확인하세요. OCR 처리된 PDF가 필요합니다.
