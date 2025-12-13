@@ -500,8 +500,16 @@ def main():
     st.markdown('<div class="main-header">📚 용민쌤의 학술 논문 분석 도구</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-header">대학원생을 위한 지능형 학술논문 분석 시스템</div>', unsafe_allow_html=True)
     
+    # 세션 상태 초기화
     if 'papers' not in st.session_state:
         st.session_state.papers = {}
+    if 'visit_count' not in st.session_state:
+        st.session_state.visit_count = 0
+    if 'analysis_count' not in st.session_state:
+        st.session_state.analysis_count = 0
+    
+    # 방문횟수 증가 (페이지 로드 시)
+    st.session_state.visit_count += 1
     
     # 사이드바
     with st.sidebar:
@@ -588,6 +596,10 @@ def main():
                                 
                                 progress_bar.progress(100)
                                 status_text.text("✅ 분석 완료!")
+                                
+                                # 분석횟수 증가
+                                st.session_state.analysis_count += 1
+                                
                                 st.success(f"**'{name}'** 분석이 완료되었습니다!")
                                 st.balloons()
         
@@ -610,6 +622,16 @@ def main():
             
             if len(st.session_state.papers) > 1:
                 st.info(f"💡 {len(st.session_state.papers)}개 논문 비교 가능")
+        
+        # 통계 표시
+        st.markdown("---")
+        st.markdown("### 📊 사용 통계")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("👁️ 방문횟수", f"{st.session_state.visit_count}회")
+        with col2:
+            st.metric("📝 분석횟수", f"{st.session_state.analysis_count}회")
+        st.caption("ℹ️ 현재 세션 기준")
     
     # 메인 영역
     if not st.session_state.papers:
