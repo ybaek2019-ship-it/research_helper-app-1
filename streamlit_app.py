@@ -497,8 +497,8 @@ def main():
         </style>
     """, unsafe_allow_html=True)
     
-    st.markdown('<div class="main-header">📚 AI 학술 논문 분석 도구</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">AI 기반 대학원생을 위한 지능형 학술논문 분석 시스템</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">📚 용민쌤의 학술 논문 분석 도구</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">대학원생을 위한 지능형 학술논문 분석 시스템</div>', unsafe_allow_html=True)
     
     if 'papers' not in st.session_state:
         st.session_state.papers = {}
@@ -509,19 +509,17 @@ def main():
         
         with st.expander("ℹ️ 사용 가이드", expanded=False):
             st.markdown("""
-            **🤖 AI 기반 분석 기능:**
-            - AI 종합 분석 (요약, 주제, 키워드)
+            **📊 분석 기능:**
+            - 종합 분석 (요약, 주제, 키워드)
             - 구조 분석 (서론, 방법, 결과, 논의)
             - 참고문헌 심층 분석
-            - 고급 텍스트 분석 (가독성, 담화 구조)
-            - 다중 논문 비교 분석
+            - 키워드 개념도 시각화
+            - 인용 네트워크 시각화
             
             **📁 파일 크기:**
             - 권장: 10MB 이하
             - 최대: 30MB
             - 20MB 이상: 압축 권장
-            
-            **💡 모든 분석이 AI로 수행됩니다.**
             """)
         
         st.markdown(f"**📊 파일 크기 제한: {MAX_FILE_SIZE_MB}MB**")
@@ -539,7 +537,7 @@ def main():
             help="비워두면 파일명이 사용됩니다"
         )
         
-        analyze_button = st.button("🔍 AI 분석 시작", type="primary", use_container_width=True)
+        analyze_button = st.button("🔍 분석 시작", type="primary", use_container_width=True)
         
         if analyze_button:
             if not uploaded_file:
@@ -562,19 +560,19 @@ def main():
                                 progress_bar = st.progress(0)
                                 status_text = st.empty()
                                 
-                                status_text.text("🤖 AI 종합 분석 중...")
+                                status_text.text("📊 종합 분석 중...")
                                 progress_bar.progress(20)
                                 main_analysis = gpt_analyze_all(text)
                                 
-                                status_text.text("🤖 AI 구조 분석 중...")
+                                status_text.text("📊 구조 분석 중...")
                                 progress_bar.progress(40)
                                 structure = gpt_analyze_structure(text)
                                 
-                                status_text.text("🤖 AI 주제&키워드 분석 중...")
+                                status_text.text("📊 주제&키워드 분석 중...")
                                 progress_bar.progress(60)
                                 keywords_themes = gpt_analyze_keywords_themes(text)
                                 
-                                status_text.text("🤖 AI 참고문헌 분석 중...")
+                                status_text.text("📊 참고문헌 분석 중...")
                                 progress_bar.progress(80)
                                 references = gpt_analyze_references(text)
                                 
@@ -589,7 +587,7 @@ def main():
                                 }
                                 
                                 progress_bar.progress(100)
-                                status_text.text("✅ AI 분석 완료!")
+                                status_text.text("✅ 분석 완료!")
                                 st.success(f"**'{name}'** 분석이 완료되었습니다!")
                                 st.balloons()
         
@@ -623,8 +621,8 @@ def main():
         st.markdown("""
         <div style="background-color: #f0f8ff; padding: 20px; border-radius: 10px; border-left: 5px solid #1f77b4; margin-bottom: 20px;">
         <p style="font-size: 15px; line-height: 1.8; margin: 0;">
-        본 도구는 <b>대학원생의 학술 논문 이해를 돕기 위한</b> AI 기반 분석 보조 도구입니다.<br>
-        GPT API를 활용하여 논문의 핵심 내용을 빠르게 파악하고, Python 시각화로 개념 간 관계를 직관적으로 이해할 수 있습니다.
+        본 도구는 <b>대학원생의 학술 논문 이해를 돕기 위한</b> 분석 보조 도구입니다.<br>
+        논문의 핵심 내용을 빠르게 파악하고, 시각화를 통해 개념 간 관계를 직관적으로 이해할 수 있습니다.
         </p>
         </div>
         """, unsafe_allow_html=True)
@@ -632,40 +630,37 @@ def main():
         st.markdown("### 🎯 주요 기능")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("#### 🤖 AI 분석")
+            st.markdown("#### 📊 논문 분석")
             st.write("• **종합 분석**: 논문 요약 및 핵심 내용")
             st.write("• **구조 분석**: 서론, 방법, 결과, 논의")
             st.write("• **키워드 추출**: 주요 개념 및 연구질문")
             st.write("• **참고문헌**: 핵심 문헌 및 연구 동향")
-            st.caption("🔹 GPT API 기반")
         with col2:
-            st.markdown("#### 🐍 Python 시각화")
+            st.markdown("#### 📈 시각화")
             st.write("• **키워드 개념도**: 주제-키워드 관계")
             st.write("• **인용 네트워크**: 저자-논문 관계")
             st.write("• **CSV 다운로드**: 분석 결과 내보내기")
-            st.caption("🔹 NetworkX, Plotly 기반")
         with col3:
             st.markdown("#### ⚠️ 신뢰성 구분")
             st.write("• **[사실]**: 논문에 명시된 내용")
-            st.write("• **[추론]**: AI가 해석한 내용")
-            st.write("• API vs Python 출력 구분 표기")
-            st.caption("🔹 투명성 확보")
+            st.write("• **[추론]**: 분석을 통한 해석")
+            st.write("• 정보 출처 구분 표기")
         
         st.markdown("---")
         st.markdown("### 💡 올바른 활용 방법")
         st.markdown("""
         <div style="background-color: #fff8dc; padding: 15px; border-radius: 8px; border-left: 4px solid #FFA500;">
         <p style="margin: 5px 0;"><b>✅ 권장:</b> 논문 초기 이해를 위한 보조 도구로 활용</p>
-        <p style="margin: 5px 0;"><b>✅ 권장:</b> AI 분석 결과를 원문과 대조하여 검증</p>
+        <p style="margin: 5px 0;"><b>✅ 권장:</b> 분석 결과를 원문과 대조하여 검증</p>
         <p style="margin: 5px 0;"><b>✅ 권장:</b> 참고문헌 조사 시 핵심 문헌 파악용</p>
-        <p style="margin: 5px 0; margin-top: 10px;"><b>⚠️ 주의:</b> AI 결과를 무비판적으로 인용하지 말 것</p>
+        <p style="margin: 5px 0; margin-top: 10px;"><b>⚠️ 주의:</b> 분석 결과를 무비판적으로 인용하지 말 것</p>
         <p style="margin: 5px 0;"><b>⚠️ 주의:</b> 네트워크 시각화는 추정값이므로 원문 확인 필요</p>
         <p style="margin: 5px 0;"><b>⚠️ 주의:</b> 학술 연구는 반드시 원문을 직접 읽고 비판적으로 분석</p>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("---")
-        st.markdown('<p style="text-align: center; color: #888; font-size: 0.85rem;">본 도구는 GPT-4o-mini API와 Python (NetworkX, Plotly)을 활용합니다. | 대학원 연구 보조 목적</p>', unsafe_allow_html=True)
+        st.markdown('<p style="text-align: center; color: #888; font-size: 0.85rem;">대학원 연구 보조 목적</p>', unsafe_allow_html=True)
     
     else:
         # 논문 선택 및 CSV 다운로드 버튼
@@ -753,16 +748,16 @@ def main():
                     cols[3].metric("작성 도구", meta['creator'][:30] if meta['creator'] else 'N/A')
         
         tabs = st.tabs([
-            "🤖 종합 분석 (AI)",
-            "📊 구조 분석 (AI)",
-            "🎯 주제 & 키워드 (AI)",
-            "📚 참고문헌 (AI)"
+            "🤖 종합 분석",
+            "📊 구조 분석",
+            "🎯 주제 & 키워드",
+            "📚 참고문헌"
         ])
         
         # 탭 1: 종합 분석
         with tabs[0]:
-            st.markdown('<div class="section-header">🤖 AI 종합 분석</div>', unsafe_allow_html=True)
-            st.caption("🔹 출력 방식: GPT API 기반 분석")
+            st.markdown('<div class="section-header">🤖 종합 분석</div>', unsafe_allow_html=True)
+            st.caption("🔹 논문의 핵심 내용을 체계적으로 분석합니다")
             
             analysis = data.get('main_analysis', {})
             
@@ -814,7 +809,7 @@ def main():
         # 탭 2: 구조 분석
         with tabs[1]:
             st.markdown('<div class="section-header">📊 논문 구조 분석</div>', unsafe_allow_html=True)
-            st.caption("🔹 출력 방식: GPT API 기반 분석")
+            st.caption("🔹 IMRaD 구조에 따라 논문을 체계적으로 분해합니다")
             
             structure = data.get('structure', {})
             
@@ -841,7 +836,7 @@ def main():
         # 탭 3: 주제 & 키워드
         with tabs[2]:
             st.markdown('<div class="section-header">🎯 주제 & 키워드 분석</div>', unsafe_allow_html=True)
-            st.caption("🔹 키워드 추출: GPT API 기반 | 시각화: Python (NetworkX) 기반")
+            st.caption("🔹 연구질문, 핵심개념, 키워드를 추출하고 관계를 시각화합니다")
             
             keywords_themes = data.get('keywords_themes', {})
             
@@ -1025,7 +1020,7 @@ def main():
         # 탭 4: 참고문헌
         with tabs[3]:
             st.markdown('<div class="section-header">📚 참고문헌 분석</div>', unsafe_allow_html=True)
-            st.caption("🔹 분석: GPT API 기반 | 네트워크 시각화: Python (NetworkX) 기반")
+            st.caption("🔹 핵심 문헌을 파악하고 인용 관계를 시각화합니다")
             
             refs = data.get('references', {})
             
