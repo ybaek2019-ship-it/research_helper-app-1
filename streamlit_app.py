@@ -27,8 +27,8 @@ def load_api_key():
         return api_key
     
     try:
-        if hasattr(st, 'secrets') and 'OPENAI_API_KEY' in st.secrets:
-            return st.secrets['OPENAI_API_KEY']
+        if hasattr(st, 'secrets') and 'default' in st.secrets and 'openai_api_key' in st.secrets['default']:
+            return st.secrets['default']['openai_api_key']
     except:
         pass
     
@@ -486,7 +486,7 @@ def main():
     """, unsafe_allow_html=True)
     
     st.markdown('<div class="main-header">📚 AI 학술 논문 분석 도구</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">100% AI 기반 대학원생을 위한 지능형 학술논문 분석 시스템</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">AI 기반 대학원생을 위한 지능형 학술논문 분석 시스템</div>', unsafe_allow_html=True)
     
     if 'papers' not in st.session_state:
         st.session_state.papers = {}
