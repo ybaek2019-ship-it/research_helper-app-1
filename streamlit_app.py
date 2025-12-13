@@ -8,9 +8,13 @@ import json
 import os
 from pathlib import Path
 import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 import csv
 import io
+import networkx as nx
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # 상수 정의
 MAX_FILE_SIZE_MB = 30
@@ -65,12 +69,15 @@ def gpt_analyze_all(text, max_words=3500):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문 분석 전문가입니다. 질적 연구방법론에 특히 정통하며, 한국어로 명확하고 상세한 분석을 제공합니다."},
+                {"role": "system", "content": "당신은 학술 논문 분석 전문가입니다. 질적 연구방법론에 특히 정통하며, 한국어로 명확하고 상세한 분석을 제공합니다. **중요: 논문에 명시된 사실과 당신의 추론/해석을 명확히 구분하여 표기하세요.**"},
                 {"role": "user", "content": f"""다음 학술 논문을 종합적으로 분석하여 한국어로 답변해주세요:
 
 {truncated_text}
 
-다음 섹션별로 명확하게 구분하여 작성해주세요:
+다음 섹션별로 명확하게 구분하여 작성해주세요.
+**중요 규칙**: 각 내용 앞에 [사실] 또는 [추론] 태그를 붙여 출처를 명확히 하세요.
+- [사실]: 논문에 명시적으로 기술된 내용
+- [추론]: AI가 추론하거나 해석한 내용
 
 [핵심요약]
 3-5문장으로 논문의 핵심 내용을 요약
@@ -132,8 +139,9 @@ def gpt_analyze_structure(text, max_words=3000):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문의 구조를 분석하는 전문가입니다. IMRaD 구조(서론, 방법, 결과, 논의)를 잘 이해하고 있습니다."},
-                {"role": "user", "content": f"""다음 논문의 구조를 분석하여 각 섹션을 요약해주세요:
+                {"role": "system", "content": "당신은 학술 논문의 구조를 분석하는 전문가입니다. IMRaD 구조(서론, 방법, 결과, 논의)를 잘 이해하고 있습니다. **중요: 논문에 명시된 사실과 추론을 구분하여 표기하세요.**"},
+                {"role": "user", "content": f"""다음 논문의 구조를 분석하여 각 섹션을 요약해주세요.
+**중요**: 각 내용 앞에 [사실] 또는 [추론] 태그를 붙이세요.
 
 {truncated_text}
 
@@ -199,8 +207,9 @@ def gpt_analyze_keywords_themes(text, max_words=3000):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문의 주제와 키워드를 추출하는 전문가입니다."},
-                {"role": "user", "content": f"""다음 논문에서 연구질문, 주요 주제, 키워드를 추출해주세요:
+                {"role": "system", "content": "당신은 학술 논문의 주제와 키워드를 추출하는 전문가입니다. **중요: 논문에 명시된 사실과 추론을 구분하여 표기하세요.**"},
+                {"role": "user", "content": f"""다음 논문에서 연구질문, 주요 주제, 키워드를 추출해주세요.
+**중요**: 각 항목 앞에 [사실] (논문에 명시됨) 또는 [추론] (AI 추출) 태그를 붙이세요.
 
 {truncated_text}
 
@@ -299,8 +308,9 @@ def gpt_analyze_references(text):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문의 참고문헌을 분석하는 전문가입니다. 서지정보를 정확히 추출하고 대학원생에게 유용한 인사이트를 제공합니다."},
-                {"role": "user", "content": f"""다음 참고문헌 목록을 분석하여 대학원생이 문헌 조사에 활용할 수 있도록 상세히 정리해주세요:
+                {"role": "system", "content": "당신은 학술 논문의 참고문헌을 분석하는 전문가입니다. 서지정보를 정확히 추출하고 대학원생에게 유용한 인사이트를 제공합니다. **중요: 사실과 추론을 구분하여 표기하세요.**"},
+                {"role": "user", "content": f"""다음 참고문헌 목록을 분석하여 대학원생이 문헌 조사에 활용할 수 있도록 상세히 정리해주세요.
+**중요**: [통계요약]과 [핵심문헌]은 [사실], [시사점]은 [추론]으로 명확히 구분하세요.
 
 {ref_section}
 
@@ -314,7 +324,9 @@ def gpt_analyze_references(text):
 
 [핵심문헌]
 각 문헌을 다음 형식으로 나열 (최대 8개):
-• 저자(연도). 제목. 저널/출판사. (피인용 횟수가 많거나 핵심적인 문헌 위주)
+• 저자(연도). 제목. 저널/출판사.
+  → [사실] 이 논문에서 X회 인용됨 (또는 참고문헌 목록에 포함된 사실)
+  → [추론] 이 분야의 이론적 기초를 제공/연구방법론을 제시/핵심 실증연구 등의 추천 사유
 
 [주요저널]
 • Journal Name 1 (XX회 인용)
@@ -605,19 +617,55 @@ def main():
     if not st.session_state.papers:
         st.info("👈 **시작하기:** 왼쪽 사이드바에서 PDF 파일을 업로드하고 AI 분석을 시작하세요.")
         
+        # 활용 목적 및 방법
+        st.markdown("---")
+        st.markdown("### 📖 이 도구의 활용 목적")
+        st.markdown("""
+        <div style="background-color: #f0f8ff; padding: 20px; border-radius: 10px; border-left: 5px solid #1f77b4; margin-bottom: 20px;">
+        <p style="font-size: 15px; line-height: 1.8; margin: 0;">
+        본 도구는 <b>대학원생의 학술 논문 이해를 돕기 위한</b> AI 기반 분석 보조 도구입니다.<br>
+        GPT API를 활용하여 논문의 핵심 내용을 빠르게 파악하고, Python 시각화로 개념 간 관계를 직관적으로 이해할 수 있습니다.
+        </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("### 🎯 주요 기능")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("### 🤖 AI 종합 분석")
-            st.write("AI가 논문을 읽고 핵심 내용, 주제, 키워드를 추출합니다.")
+            st.markdown("#### 🤖 AI 분석")
+            st.write("• **종합 분석**: 논문 요약 및 핵심 내용")
+            st.write("• **구조 분석**: 서론, 방법, 결과, 논의")
+            st.write("• **키워드 추출**: 주요 개념 및 연구질문")
+            st.write("• **참고문헌**: 핵심 문헌 및 연구 동향")
+            st.caption("🔹 GPT API 기반")
         with col2:
-            st.markdown("### 📊 구조 분석")
-            st.write("서론, 방법, 결과, 논의 등 논문 구조를 AI가 분석합니다.")
+            st.markdown("#### 🐍 Python 시각화")
+            st.write("• **키워드 개념도**: 주제-키워드 관계")
+            st.write("• **인용 네트워크**: 저자-논문 관계")
+            st.write("• **CSV 다운로드**: 분석 결과 내보내기")
+            st.caption("🔹 NetworkX, Plotly 기반")
         with col3:
-            st.markdown("### 📚 참고문헌 분석")
-            st.write("AI가 참고문헌을 분석하여 연구 동향을 파악합니다.")
+            st.markdown("#### ⚠️ 신뢰성 구분")
+            st.write("• **[사실]**: 논문에 명시된 내용")
+            st.write("• **[추론]**: AI가 해석한 내용")
+            st.write("• API vs Python 출력 구분 표기")
+            st.caption("🔹 투명성 확보")
         
         st.markdown("---")
-        st.markdown('<p style="text-align: center; color: #888; font-size: 0.85rem; margin-top: 2rem;">본 분석 도구는 GPT-4를 활용하여 학술 논문을 분석합니다.</p>', unsafe_allow_html=True)
+        st.markdown("### 💡 올바른 활용 방법")
+        st.markdown("""
+        <div style="background-color: #fff8dc; padding: 15px; border-radius: 8px; border-left: 4px solid #FFA500;">
+        <p style="margin: 5px 0;"><b>✅ 권장:</b> 논문 초기 이해를 위한 보조 도구로 활용</p>
+        <p style="margin: 5px 0;"><b>✅ 권장:</b> AI 분석 결과를 원문과 대조하여 검증</p>
+        <p style="margin: 5px 0;"><b>✅ 권장:</b> 참고문헌 조사 시 핵심 문헌 파악용</p>
+        <p style="margin: 5px 0; margin-top: 10px;"><b>⚠️ 주의:</b> AI 결과를 무비판적으로 인용하지 말 것</p>
+        <p style="margin: 5px 0;"><b>⚠️ 주의:</b> 네트워크 시각화는 추정값이므로 원문 확인 필요</p>
+        <p style="margin: 5px 0;"><b>⚠️ 주의:</b> 학술 연구는 반드시 원문을 직접 읽고 비판적으로 분석</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown('<p style="text-align: center; color: #888; font-size: 0.85rem;">본 도구는 GPT-4o-mini API와 Python (NetworkX, Plotly)을 활용합니다. | 대학원 연구 보조 목적</p>', unsafe_allow_html=True)
     
     else:
         # 논문 선택 및 CSV 다운로드 버튼
@@ -705,15 +753,16 @@ def main():
                     cols[3].metric("작성 도구", meta['creator'][:30] if meta['creator'] else 'N/A')
         
         tabs = st.tabs([
-            "🤖 종합 분석",
-            "📊 구조 분석",
-            "🎯 주제 & 키워드",
-            "📚 참고문헌"
+            "🤖 종합 분석 (AI)",
+            "📊 구조 분석 (AI)",
+            "🎯 주제 & 키워드 (AI)",
+            "📚 참고문헌 (AI)"
         ])
         
         # 탭 1: 종합 분석
         with tabs[0]:
             st.markdown('<div class="section-header">🤖 AI 종합 분석</div>', unsafe_allow_html=True)
+            st.caption("🔹 출력 방식: GPT API 기반 분석")
             
             analysis = data.get('main_analysis', {})
             
@@ -765,6 +814,7 @@ def main():
         # 탭 2: 구조 분석
         with tabs[1]:
             st.markdown('<div class="section-header">📊 논문 구조 분석</div>', unsafe_allow_html=True)
+            st.caption("🔹 출력 방식: GPT API 기반 분석")
             
             structure = data.get('structure', {})
             
@@ -791,6 +841,7 @@ def main():
         # 탭 3: 주제 & 키워드
         with tabs[2]:
             st.markdown('<div class="section-header">🎯 주제 & 키워드 분석</div>', unsafe_allow_html=True)
+            st.caption("🔹 키워드 추출: GPT API 기반 | 시각화: Python (NetworkX) 기반")
             
             keywords_themes = data.get('keywords_themes', {})
             
@@ -868,10 +919,113 @@ def main():
                     terms = [t.strip() for t in keywords_themes['학술용어'].replace(',', '\n').split('\n') if t.strip()]
                     terms = [t[1:].strip() if t.startswith(('•', '-', '*')) else t for t in terms]
                     st.markdown(" • ".join(terms[:15]))
+                
+                # 키워드 개념도 시각화
+                st.markdown("---")
+                st.markdown("### 🗺️ 키워드 개념도")
+                st.markdown("""
+                <div style="padding: 12px; background-color: #f0f8ff; border-left: 4px solid #2196F3; border-radius: 5px; margin-bottom: 15px;">
+                📘 <b>개념도 설명</b><br>
+                이 그래프는 논문의 핵심 주제와 관련 키워드 간의 관계를 시각화합니다.<br>
+                • <span style="color: #FF6B6B;">⬤ 빨간색 노드</span>: 논문의 핵심 주제 (중심 개념)<br>
+                • <span style="color: #4ECDC4;">⬤ 청록색 노드</span>: 관련 키워드 및 하위 개념<br>
+                • <b>선(edge)</b>: 주제와 키워드 간의 연관성을 나타냅니다.<br>
+                💡 이 시각화를 통해 논문의 이론적 구조와 개념 간 관계를 한눈에 파악할 수 있습니다.
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 모든 키워드 수집
+                all_keywords = []
+                if '핵심개념' in keywords_themes and keywords_themes['핵심개념']:
+                    concepts = [c.strip() for c in keywords_themes['핵심개념'].replace(',', '\n').split('\n') if c.strip()]
+                    all_keywords.extend([c[1:].strip() if c.startswith(('•', '-', '*')) else c for c in concepts])
+                if '중요키워드' in keywords_themes and keywords_themes['중요키워드']:
+                    keywords_list = [k.strip() for k in keywords_themes['중요키워드'].replace(',', '\n').split('\n') if k.strip()]
+                    all_keywords.extend([k[1:].strip() if k.startswith(('•', '-', '*')) else k for k in keywords_list])
+                
+                if len(all_keywords) >= 3:
+                    # 키워드 네트워크 생성
+                    G = nx.Graph()
+                    
+                    # 중심 노드
+                    if '주요주제' in keywords_themes and keywords_themes['주요주제']:
+                        main_themes = [t.strip() for t in keywords_themes['주요주제'].strip().split('\n') if t.strip()]
+                        main_theme = main_themes[0][1:].strip() if main_themes[0].startswith(('•', '-', '*')) else main_themes[0]
+                        G.add_node(main_theme, node_type='main', size=30)
+                        
+                        # 키워드를 중심 주제와 연결
+                        for i, kw in enumerate(all_keywords[:12]):
+                            if kw and kw != main_theme:
+                                G.add_node(kw, node_type='keyword', size=15)
+                                G.add_edge(main_theme, kw)
+                    else:
+                        # 주제가 없으면 첫 키워드를 중심으로
+                        if all_keywords:
+                            G.add_node(all_keywords[0], node_type='main', size=30)
+                            for kw in all_keywords[1:12]:
+                                if kw:
+                                    G.add_node(kw, node_type='keyword', size=15)
+                                    G.add_edge(all_keywords[0], kw)
+                    
+                    if len(G.nodes()) > 1:
+                        # 레이아웃 계산
+                        pos = nx.spring_layout(G, k=2, iterations=50)
+                        
+                        # 엣지 트레이스
+                        edge_trace = go.Scatter(
+                            x=[], y=[],
+                            line=dict(width=1, color='#888'),
+                            hoverinfo='none',
+                            mode='lines')
+                        
+                        for edge in G.edges():
+                            x0, y0 = pos[edge[0]]
+                            x1, y1 = pos[edge[1]]
+                            edge_trace['x'] += tuple([x0, x1, None])
+                            edge_trace['y'] += tuple([y0, y1, None])
+                        
+                        # 노드 트레이스
+                        node_trace = go.Scatter(
+                            x=[], y=[],
+                            text=[],
+                            mode='markers+text',
+                            hoverinfo='text',
+                            marker=dict(
+                                showscale=False,
+                                size=[],
+                                color=[],
+                                line_width=2))
+                        
+                        for node in G.nodes():
+                            x, y = pos[node]
+                            node_trace['x'] += tuple([x])
+                            node_trace['y'] += tuple([y])
+                            node_trace['text'] += tuple([node])
+                            node_trace['marker']['size'] += tuple([G.nodes[node].get('size', 15)])
+                            node_trace['marker']['color'] += tuple(['#FF6B6B' if G.nodes[node].get('node_type') == 'main' else '#4ECDC4'])
+                        
+                        # 그래프 생성
+                        fig = go.Figure(data=[edge_trace, node_trace],
+                                      layout=go.Layout(
+                                          showlegend=False,
+                                          hovermode='closest',
+                                          margin=dict(b=0,l=0,r=0,t=0),
+                                          xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                          yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                          height=500,
+                                          plot_bgcolor='rgba(0,0,0,0)',
+                                          paper_bgcolor='rgba(0,0,0,0)'
+                                      ))
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.caption("💡 중심 노드(빨강)는 핵심 주제, 주변 노드(청록)는 관련 키워드를 나타냅니다.")
+                else:
+                    st.info("키워드가 충분하지 않아 개념도를 생성할 수 없습니다.")
         
         # 탭 4: 참고문헌
         with tabs[3]:
             st.markdown('<div class="section-header">📚 참고문헌 분석</div>', unsafe_allow_html=True)
+            st.caption("🔹 분석: GPT API 기반 | 네트워크 시각화: Python (NetworkX) 기반")
             
             refs = data.get('references', {})
             
@@ -889,17 +1043,74 @@ def main():
                 if '핵심문헌' in refs and refs['핵심문헌']:
                     st.markdown("### 📖 핵심 문헌 (필독)")
                     st.markdown("""<div style="background-color: #fffacd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    💡 <b>연구에 가장 중요한 참고문헌들입니다. 문헌 조사 시 우선적으로 읽어보세요.</b>
+                    💡 <b>연구에 가장 중요한 참고문헌들입니다. 각 문헌의 추천 사유를 확인하세요.</b>
                     </div>""", unsafe_allow_html=True)
                     
-                    core_refs = [r.strip() for r in refs['핵심문헌'].strip().split('\n') if r.strip()]
-                    core_refs = [r[1:].strip() if r.startswith(('•', '-', '*')) else r for r in core_refs]
+                    # 참고문헌을 파싱 (문헌 정보와 추천 사유 분리)
+                    core_refs_text = refs['핵심문헌'].strip().split('\n')
                     
-                    for i, ref in enumerate(core_refs, 1):
-                        if ref:
-                            st.markdown(f"""<div style="padding: 12px; background-color: #ffffff; border-left: 4px solid #4CAF50; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                            <b style="color: #4CAF50;">[{i}]</b> {ref}
-                            </div>""", unsafe_allow_html=True)
+                    ref_counter = 0
+                    current_ref = None
+                    current_reasons = []
+                    
+                    for line in core_refs_text:
+                        line = line.strip()
+                        if not line:
+                            continue
+                            
+                        # 새로운 문헌 시작 (• 또는 - 또는 * 로 시작)
+                        if line.startswith(('• ', '- ', '* ')) and not line.startswith(('• →', '- →', '* →')):
+                            # 이전 문헌 출력
+                            if current_ref:
+                                ref_counter += 1
+                                st.markdown(f"""<div style="padding: 15px; background-color: #ffffff; border-left: 4px solid #4CAF50; margin-bottom: 15px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <b style="color: #4CAF50; font-size: 16px;">[{ref_counter}]</b> <span style="font-size: 15px;">{current_ref}</span>
+                                """, unsafe_allow_html=True)
+                                
+                                if current_reasons:
+                                    st.markdown('<div style="margin-top: 10px; padding-left: 10px; border-left: 2px solid #E0E0E0;">', unsafe_allow_html=True)
+                                    for reason in current_reasons:
+                                        reason = reason.strip()
+                                        if '[사실]' in reason or '[추론]' in reason:
+                                            # 사실과 추론에 색상 적용
+                                            if '[사실]' in reason:
+                                                reason_colored = reason.replace('[사실]', '<span style="color: #2196F3; font-weight: bold;">📌 사실:</span>')
+                                            elif '[추론]' in reason:
+                                                reason_colored = reason.replace('[추론]', '<span style="color: #FF9800; font-weight: bold;">💭 추론:</span>')
+                                            st.markdown(f'<p style="margin: 5px 0; font-size: 14px;">{reason_colored}</p>', unsafe_allow_html=True)
+                                    st.markdown('</div></div>', unsafe_allow_html=True)
+                                else:
+                                    st.markdown('</div>', unsafe_allow_html=True)
+                            
+                            # 새 문헌 시작
+                            current_ref = line[2:].strip()  # • 또는 - 제거
+                            current_reasons = []
+                        
+                        # 추천 사유 (→ 로 시작)
+                        elif line.startswith('→') or line.startswith('• →') or line.startswith('- →') or line.startswith('* →'):
+                            current_reasons.append(line.replace('• →', '→').replace('- →', '→').replace('* →', '→').strip())
+                    
+                    # 마지막 문헌 출력
+                    if current_ref:
+                        ref_counter += 1
+                        st.markdown(f"""<div style="padding: 15px; background-color: #ffffff; border-left: 4px solid #4CAF50; margin-bottom: 15px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <b style="color: #4CAF50; font-size: 16px;">[{ref_counter}]</b> <span style="font-size: 15px;">{current_ref}</span>
+                        """, unsafe_allow_html=True)
+                        
+                        if current_reasons:
+                            st.markdown('<div style="margin-top: 10px; padding-left: 10px; border-left: 2px solid #E0E0E0;">', unsafe_allow_html=True)
+                            for reason in current_reasons:
+                                reason = reason.strip()
+                                if '[사실]' in reason or '[추론]' in reason:
+                                    if '[사실]' in reason:
+                                        reason_colored = reason.replace('[사실]', '<span style="color: #2196F3; font-weight: bold;">📌 사실:</span>')
+                                    elif '[추론]' in reason:
+                                        reason_colored = reason.replace('[추론]', '<span style="color: #FF9800; font-weight: bold;">💭 추론:</span>')
+                                    st.markdown(f'<p style="margin: 5px 0; font-size: 14px;">{reason_colored}</p>', unsafe_allow_html=True)
+                            st.markdown('</div></div>', unsafe_allow_html=True)
+                        else:
+                            st.markdown('</div>', unsafe_allow_html=True)
+                    
                     st.markdown("---")
                 
                 # 2컬럼 레이아웃
@@ -942,6 +1153,136 @@ def main():
                     st.markdown(f"""<div style="padding: 15px; background-color: #e8f5e9; border-radius: 8px; border-left: 5px solid #4CAF50;">
                     {refs['시사점']}
                     </div>""", unsafe_allow_html=True)
+                
+                # 인용 네트워크 시각화
+                st.markdown("---")
+                st.markdown("### 🔗 인용 네트워크")
+                st.markdown("""
+                <div style="padding: 12px; background-color: #fff3e0; border-left: 4px solid #FF9800; border-radius: 5px; margin-bottom: 15px;">
+                📘 <b>인용 네트워크 설명</b> | 🐍 <i>Python (NetworkX) 기반 시각화</i><br>
+                이 그래프는 논문의 참고문헌에 나타난 주요 연구자와 문헌 간의 관계를 시각화합니다.<br>
+                • <span style="color: #FF6B6B;">⬤ 빨간색 노드</span>: 영향력 있는 연구자 (인용 횟수가 많은 저자)<br>
+                • <span style="color: #95E1D3;">⬤ 청록색 노드</span>: 핵심 참고문헌 (주요 논문)<br>
+                • <b>선(edge)</b>: 저자-논문 간의 저작 관계를 나타냅니다.<br>
+                💡 이 시각화를 통해 연구 분야의 주요 학자와 그들의 핵심 저작물을 파악할 수 있습니다.<br>
+                ⚠️ <i>주의: 네트워크 연결은 저자명 유사도 기반으로 추정되므로 실제와 다를 수 있습니다.</i>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 핵심문헌과 연구자 정보로 네트워크 생성
+                if '핵심문헌' in refs and refs['핵심문헌'] and '영향력있는연구자' in refs and refs['영향력있는연구자']:
+                    G = nx.Graph()
+                    
+                    # 핵심문헌에서 저자 추출 (간단하게 파싱)
+                    core_refs = [r.strip() for r in refs['핵심문헌'].strip().split('\n') if r.strip()]
+                    core_refs = [r[1:].strip() if r.startswith(('•', '-', '*')) else r for r in core_refs]
+                    
+                    researchers = [r.strip() for r in refs['영향력있는연구자'].strip().split('\n') if r.strip()]
+                    researchers = [r[1:].strip() if r.startswith(('•', '-', '*')) else r for r in researchers]
+                    
+                    # 연구자 노드 추가
+                    for researcher in researchers[:5]:
+                        if researcher and '(' in researcher:
+                            author_name = researcher.split('(')[0].strip()
+                            if author_name:
+                                G.add_node(author_name, node_type='author', size=25)
+                    
+                    # 문헌 노드 추가 및 연결
+                    for i, ref in enumerate(core_refs[:6]):
+                        if ref:
+                            # 저자명 추출 시도 (첫 단어 또는 괄호 전까지)
+                            parts = ref.split('(')
+                            if len(parts) > 1:
+                                author_from_ref = parts[0].strip().split()[0] if parts[0].strip() else f"문헌{i+1}"
+                            else:
+                                author_from_ref = f"문헌{i+1}"
+                            
+                            # 노드에 전체 참조를 저장 (display용과 hover용 분리)
+                            G.add_node(ref, node_type='paper', size=15, full_ref=ref)
+                            
+                            # 저자와 문헌 연결 (이름이 유사하면)
+                            for author_node in [n for n in G.nodes() if G.nodes[n].get('node_type') == 'author']:
+                                if any(word in author_from_ref.lower() for word in author_node.lower().split()[:2]):
+                                    G.add_edge(author_node, ref)
+                    
+                    # 문헌 간 연결 (같은 저자가 쓴 것으로 추정)
+                    papers = [n for n in G.nodes() if G.nodes[n].get('node_type') == 'paper']
+                    for i, paper1 in enumerate(papers):
+                        for paper2 in papers[i+1:i+3]:  # 인접한 2개만 연결
+                            if nx.has_path(G, paper1, paper2) and nx.shortest_path_length(G, paper1, paper2) == 2:
+                                continue  # 이미 공통 저자로 연결됨
+                    
+                    if len(G.nodes()) > 2:
+                        # 레이아웃 계산
+                        pos = nx.spring_layout(G, k=3, iterations=50)
+                        
+                        # 엣지 트레이스
+                        edge_trace = go.Scatter(
+                            x=[], y=[],
+                            line=dict(width=0.5, color='#888'),
+                            hoverinfo='none',
+                            mode='lines')
+                        
+                        for edge in G.edges():
+                            x0, y0 = pos[edge[0]]
+                            x1, y1 = pos[edge[1]]
+                            edge_trace['x'] += tuple([x0, x1, None])
+                            edge_trace['y'] += tuple([y0, y1, None])
+                        
+                        # 노드 트레이스
+                        node_trace = go.Scatter(
+                            x=[], y=[],
+                            text=[],
+                            hovertext=[],
+                            mode='markers+text',
+                            hoverinfo='text',
+                            textposition='top center',
+                            marker=dict(
+                                showscale=False,
+                                size=[],
+                                color=[],
+                                line_width=2))
+                        
+                        for node in G.nodes():
+                            x, y = pos[node]
+                            node_trace['x'] += tuple([x])
+                            node_trace['y'] += tuple([y])
+                            
+                            node_type = G.nodes[node].get('node_type', 'paper')
+                            
+                            # 노드 라벨 (display용 - 짧게)
+                            if node_type == 'paper':
+                                label = node[:50] + "..." if len(node) > 50 else node
+                            else:
+                                label = node
+                            node_trace['text'] += tuple([label])
+                            
+                            # Hover 정보 (전체 이름)
+                            hover_text = node  # 전체 이름 표시
+                            node_trace['hovertext'] += tuple([hover_text])
+                            
+                            node_trace['marker']['size'] += tuple([G.nodes[node].get('size', 15)])
+                            node_trace['marker']['color'] += tuple(['#FF6B6B' if node_type == 'author' else '#95E1D3'])
+                        
+                        # 그래프 생성
+                        fig = go.Figure(data=[edge_trace, node_trace],
+                                      layout=go.Layout(
+                                          showlegend=False,
+                                          hovermode='closest',
+                                          margin=dict(b=0,l=0,r=0,t=40),
+                                          xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                          yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                          height=600,
+                                          plot_bgcolor='rgba(0,0,0,0)',
+                                          paper_bgcolor='rgba(0,0,0,0)'
+                                      ))
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.caption("💡 빨간 노드는 영향력 있는 연구자, 청록 노드는 핵심 문헌을 나타냅니다. 선은 저자-논문 관계를 표시합니다.")
+                    else:
+                        st.info("네트워크를 생성하기에 충분한 정보가 없습니다.")
+                else:
+                    st.info("핵심문헌 또는 연구자 정보가 없어 네트워크를 생성할 수 없습니다.")
 
 if __name__ == "__main__":
     main()

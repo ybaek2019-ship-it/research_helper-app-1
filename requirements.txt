@@ -3,3 +3,5 @@ pypdf
 openai
 plotly
 pandas
+networkx
+scikit-learn
