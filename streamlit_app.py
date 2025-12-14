@@ -1442,6 +1442,9 @@ def main():
                 if paper2:
                     st.markdown("---")
                     
+                    # 세션에 비교 결과 저장 키 생성
+                    comparison_key = f"{paper1}_vs_{paper2}"
+                    
                     # 비교 분석 실행 버튼
                     if st.button("🚀 심층 비교 분석 시작", type="primary", use_container_width=True):
                         with st.spinner("📊 논문을 비교 분석 중입니다... (약 20-30초 소요)"):
@@ -1452,11 +1455,21 @@ def main():
                             }
                             comparison = gpt_compare_papers(compare_data)
                             
-                            if 'error' not in comparison:
-                                st.success("✅ 비교 분석 완료!")
-                                
-                                # 연구 공백
-                                if '연구공백' in comparison:
+                            # 세션에 결과 저장
+                            if 'comparisons' not in st.session_state:
+                                st.session_state.comparisons = {}
+                            st.session_state.comparisons[comparison_key] = comparison
+                            st.rerun()
+                    
+                    # 저장된 비교 결과 표시
+                    if 'comparisons' in st.session_state and comparison_key in st.session_state.comparisons:
+                        comparison = st.session_state.comparisons[comparison_key]
+                        
+                        if 'error' not in comparison:
+                            st.success("✅ 비교 분석 완료!")
+                            
+                            # 연구 공백
+                            if '연구공백' in comparison:
                                     st.markdown("### 🎯 연구 공백 (Research Gap)")
                                     st.markdown("""
                                     <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50; margin-bottom: 15px;">
@@ -1503,19 +1516,19 @@ def main():
                                     </div>
                                     """, unsafe_allow_html=True)
                                     st.success(comparison['연구제안'])
-                            else:
-                                st.error(comparison['error'])
-                    
-                    # 참고문헌 교집합 분석
-                    st.markdown("---")
-                    st.markdown("### 📚 참고문헌 교집합 분석")
-                    
-                    ref_comparison = compare_references({
-                        paper1: st.session_state.papers[paper1],
-                        paper2: st.session_state.papers[paper2]
-                    })
-                    
-                    if ref_comparison and ref_comparison['common_count'] > 0:
+                        else:
+                            st.error(comparison['error'])
+                        
+                        # 참고문헌 교집합 분석
+                        st.markdown("---")
+                        st.markdown("### 📚 참고문헌 교집합 분석")
+                        
+                        ref_comparison = compare_references({
+                            paper1: st.session_state.papers[paper1],
+                            paper2: st.session_state.papers[paper2]
+                        })
+                        
+                        if ref_comparison and ref_comparison['common_count'] > 0:
                         col1, col2, col3 = st.columns(3)
                         with col1:
                             st.metric(f"📄 {ref_comparison['paper1']}", f"{ref_comparison['refs1_count']}개 문헌")
@@ -1525,19 +1538,21 @@ def main():
                             st.metric("🔗 공통 인용", f"{ref_comparison['common_count']}개", 
                                      delta=f"{round(ref_comparison['common_count']/min(ref_comparison['refs1_count'], ref_comparison['refs2_count'])*100)}%")
                         
-                        st.markdown("#### 🎯 공통으로 인용된 핵심 문헌 (필독)")
-                        st.markdown("""
-                        <div style="background-color: #fffacd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                        💡 두 논문이 모두 인용한 문헌은 해당 분야의 <b>필수 선행연구</b>입니다. 우선적으로 읽어보세요.
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        for i, ref in enumerate(ref_comparison['common'], 1):
-                            st.markdown(f"""<div style="padding: 10px; background-color: #ffffff; border-left: 4px solid #FF9800; margin-bottom: 8px; border-radius: 5px;">
-                            <b style="color: #FF9800;">[{i}]</b> {ref}
-                            </div>""", unsafe_allow_html=True)
+                            st.markdown("#### 🎯 공통으로 인용된 핵심 문헌 (필독)")
+                            st.markdown("""
+                            <div style="background-color: #fffacd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            💡 두 논문이 모두 인용한 문헌은 해당 분야의 <b>필수 선행연구</b>입니다. 우선적으로 읽어보세요.
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            for i, ref in enumerate(ref_comparison['common'], 1):
+                                st.markdown(f"""<div style="padding: 10px; background-color: #ffffff; border-left: 4px solid #FF9800; margin-bottom: 8px; border-radius: 5px;">
+                                <b style="color: #FF9800;">[{i}]</b> {ref}
+                                </div>""", unsafe_allow_html=True)
+                        else:
+                            st.info("두 논문 간 명확한 공통 인용 문헌을 찾지 못했습니다. (저자명 매칭 기준)")
                     else:
-                        st.info("두 논문 간 명확한 공통 인용 문헌을 찾지 못했습니다. (저자명 매칭 기준)")
+                        st.info("💡 '심층 비교 분석 시작' 버튼을 클릭하여 분석을 시작하세요.")
                 else:
                     st.warning("비교할 두 번째 논문을 선택해주세요.")
 
