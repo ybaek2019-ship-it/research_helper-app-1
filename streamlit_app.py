@@ -465,52 +465,6 @@ def gpt_compare_papers(papers_data, max_words_per_paper=2000):
     except Exception as e:
         return {"error": f"논문 비교 실패: {str(e)}"}
 
-def compare_references(papers_data):
-    """참고문헌 교집합을 분석합니다."""
-    if len(papers_data) < 2:
-        return None
-    
-    # 각 논문의 핵심문헌 추출
-    all_refs = {}
-    for name, data in papers_data.items():
-        refs = data.get('references', {})
-        core_refs_text = refs.get('핵심문헌', '')
-        
-        if core_refs_text:
-            ref_lines = [r.strip() for r in core_refs_text.split('\n') if r.strip()]
-            ref_lines = [r[2:].strip() if r.startswith(('• ', '- ', '* ')) else r for r in ref_lines]
-            # → 로 시작하는 추천 사유 제외
-            ref_lines = [r for r in ref_lines if not r.startswith('→')]
-            all_refs[name] = ref_lines[:10]  # 상위 10개만
-    
-    if len(all_refs) < 2:
-        return None
-    
-    # 교집합 찾기 (저자명 기반 간단 매칭)
-    paper_names = list(all_refs.keys())
-    refs1 = all_refs[paper_names[0]]
-    refs2 = all_refs[paper_names[1]]
-    
-    # 간단한 유사도 기반 매칭 (저자 성 비교)
-    common = []
-    for ref1 in refs1:
-        # 첫 단어 또는 괄호 앞 저자명 추출
-        author1 = ref1.split('(')[0].split('.')[0].strip()[:20]
-        for ref2 in refs2:
-            author2 = ref2.split('(')[0].split('.')[0].strip()[:20]
-            if author1 and author2 and (author1 in ref2 or author2 in ref1):
-                if ref1 not in common:
-                    common.append(ref1)
-    
-    return {
-        'paper1': paper_names[0],
-        'paper2': paper_names[1],
-        'refs1_count': len(refs1),
-        'refs2_count': len(refs2),
-        'common': common,
-        'common_count': len(common)
-    }
-
 # ==================== 텍스트 전처리 ====================
 def clean_text(text):
     """텍스트를 정제하고 정규화합니다."""
@@ -1518,39 +1472,6 @@ def main():
                                 st.success(comparison['연구제안'])
                         else:
                             st.error(comparison['error'])
-                        
-                        # 참고문헌 교집합 분석
-                        st.markdown("---")
-                        st.markdown("### 📚 참고문헌 교집합 분석")
-                        
-                        ref_comparison = compare_references({
-                            paper1: st.session_state.papers[paper1],
-                            paper2: st.session_state.papers[paper2]
-                        })
-                        
-                        if ref_comparison and ref_comparison['common_count'] > 0:
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric(f"📄 {ref_comparison['paper1']}", f"{ref_comparison['refs1_count']}개 문헌")
-                        with col2:
-                            st.metric(f"📄 {ref_comparison['paper2']}", f"{ref_comparison['refs2_count']}개 문헌")
-                        with col3:
-                            st.metric("🔗 공통 인용", f"{ref_comparison['common_count']}개", 
-                                     delta=f"{round(ref_comparison['common_count']/min(ref_comparison['refs1_count'], ref_comparison['refs2_count'])*100)}%")
-                        
-                            st.markdown("#### 🎯 공통으로 인용된 핵심 문헌 (필독)")
-                            st.markdown("""
-                            <div style="background-color: #fffacd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                            💡 두 논문이 모두 인용한 문헌은 해당 분야의 <b>필수 선행연구</b>입니다. 우선적으로 읽어보세요.
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            for i, ref in enumerate(ref_comparison['common'], 1):
-                                st.markdown(f"""<div style="padding: 10px; background-color: #ffffff; border-left: 4px solid #FF9800; margin-bottom: 8px; border-radius: 5px;">
-                                <b style="color: #FF9800;">[{i}]</b> {ref}
-                                </div>""", unsafe_allow_html=True)
-                        else:
-                            st.info("두 논문 간 명확한 공통 인용 문헌을 찾지 못했습니다. (저자명 매칭 기준)")
                     else:
                         st.info("💡 '심층 비교 분석 시작' 버튼을 클릭하여 분석을 시작하세요.")
                 else:
