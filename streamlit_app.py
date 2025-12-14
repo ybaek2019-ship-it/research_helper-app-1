@@ -61,7 +61,14 @@ def gpt_verify_analysis(original_text, analysis_result, analysis_type, max_words
     try:
         client = get_openai_client()
         if not client:
-            return {"verified": True, "warning": ""}  # API 키 없으면 검증 생략
+            # API 키 없으면 검증 불가능하므로 경고 표시
+            return {
+                "verified": False,
+                "result": "검증 불가",
+                "false_items": "",
+                "reason": "OpenAI API 키가 설정되지 않아 검증할 수 없습니다.",
+                "recommendation": "검증되지 않았으므로 원본 논문을 반드시 확인하시기 바랍니다."
+            }
         
         words = original_text.split()
         truncated_text = ' '.join(words[:max_words])
@@ -138,7 +145,14 @@ def gpt_verify_analysis(original_text, analysis_result, analysis_type, max_words
         }
         
     except Exception as e:
-        return {"verified": True, "warning": f"검증 중 오류: {str(e)}"}
+        # 검증 실패 시에는 검증되지 않았다고 표시
+        return {
+            "verified": False, 
+            "result": "검증 실패",
+            "false_items": "",
+            "reason": f"검증 중 오류 발생: {str(e)}",
+            "recommendation": "검증이 실패했으므로 원본 논문을 반드시 확인하시기 바랍니다."
+        }
 
 def gpt_analyze_all(text, max_words=3500):
     """GPT를 사용하여 논문을 종합적으로 분석합니다."""
@@ -395,6 +409,15 @@ def gpt_analyze_references(text):
                 {"role": "system", "content": "당신은 학술 논문의 참고문헌을 분석하는 전문가입니다. 서지정보를 정확히 추출하고 대학원생에게 유용한 인사이트를 제공합니다. **중요: 사실과 추론을 구분하여 표기하세요.**"},
                 {"role": "user", "content": f"""다음 참고문헌 목록을 분석하여 대학원생이 문헌 조사에 활용할 수 있도록 상세히 정리해주세요.
 **중요**: [통계요약]과 [핵심문헌]은 [사실], [시사점]은 [추론]으로 명확히 구분하세요.
+
+**참고문헌 계산 규칙**:
+1. 저자-연도-제목 단위로 독립된 참고문헌 1건으로 계산
+2. DOI, UCI, 줄바꿈, 페이지 중간에 삽입된 본문 표식은 계산에서 제외
+3. 국문·영문, 단행본·논문 모두 동일 기준 적용
+4. 예시:
+   - "Smith, J. (2020). Title. Journal." = 1건
+   - "Smith, J. (2020). Title.\nDOI: 10.xxxx/xxxx" = 1건 (DOI는 제외)
+   - "Kim, H. (2021). 제목. 저널." = 1건
 
 {ref_section}
 
