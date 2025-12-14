@@ -1470,52 +1470,52 @@ def main():
                             
                             # 연구 공백
                             if '연구공백' in comparison:
-                                    st.markdown("### 🎯 연구 공백 (Research Gap)")
-                                    st.markdown("""
-                                    <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50; margin-bottom: 15px;">
-                                    💡 <b>활용 방법:</b> 이 정보를 활용하여 새로운 연구 주제를 선정하거나 연구 제안서의 차별성을 강조할 수 있습니다.
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    st.markdown(comparison['연구공백'])
-                                    st.markdown("---")
-                                
-                                # 방법론 비교
-                                if '방법론비교' in comparison:
-                                    st.markdown("### 🔬 방법론 비교")
-                                    st.markdown("""
-                                    <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; border-left: 5px solid #FF9800; margin-bottom: 15px;">
-                                    💡 <b>활용 방법:</b> 각 방법론의 장단점을 이해하고 자신의 연구 상황에 적합한 방법을 선택하세요.
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    st.markdown(comparison['방법론비교'])
-                                    st.markdown("---")
-                                
-                                # 이론적 차이
-                                if '이론적차이' in comparison:
-                                    st.markdown("### 📚 이론적 프레임워크 비교")
-                                    st.markdown("""
-                                    <div style="background-color: #f3e5f5; padding: 15px; border-radius: 8px; border-left: 5px solid #9C27B0; margin-bottom: 15px;">
-                                    💡 <b>활용 방법:</b> 문헌고찰에서 이론 비교 섹션을 작성하거나 자신의 연구에 적합한 이론을 선택하세요.
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    st.markdown(comparison['이론적차이'])
-                                    st.markdown("---")
-                                
-                                # 주요 차별점
-                                if '주요차별점' in comparison:
-                                    st.markdown("### 🔍 주요 차별점")
-                                    st.info(comparison['주요차별점'])
-                                    st.markdown("---")
-                                
-                                # 연구 제안
-                                if '연구제안' in comparison:
-                                    st.markdown("### 💡 새로운 연구 제안")
-                                    st.markdown("""
-                                    <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 5px solid #2196F3; margin-bottom: 15px;">
-                                    💡 <b>활용 방법:</b> 이 제안을 바탕으로 연구 계획서를 작성하거나 지도교수와 논의할 수 있습니다.
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    st.success(comparison['연구제안'])
+                                st.markdown("### 🎯 연구 공백 (Research Gap)")
+                                st.markdown("""
+                                <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50; margin-bottom: 15px;">
+                                💡 <b>활용 방법:</b> 이 정보를 활용하여 새로운 연구 주제를 선정하거나 연구 제안서의 차별성을 강조할 수 있습니다.
+                                </div>
+                                """, unsafe_allow_html=True)
+                                st.markdown(comparison['연구공백'])
+                                st.markdown("---")
+                            
+                            # 방법론 비교
+                            if '방법론비교' in comparison:
+                                st.markdown("### 🔬 방법론 비교")
+                                st.markdown("""
+                                <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; border-left: 5px solid #FF9800; margin-bottom: 15px;">
+                                💡 <b>활용 방법:</b> 각 방법론의 장단점을 이해하고 자신의 연구 상황에 적합한 방법을 선택하세요.
+                                </div>
+                                """, unsafe_allow_html=True)
+                                st.markdown(comparison['방법론비교'])
+                                st.markdown("---")
+                            
+                            # 이론적 차이
+                            if '이론적차이' in comparison:
+                                st.markdown("### 📚 이론적 프레임워크 비교")
+                                st.markdown("""
+                                <div style="background-color: #f3e5f5; padding: 15px; border-radius: 8px; border-left: 5px solid #9C27B0; margin-bottom: 15px;">
+                                💡 <b>활용 방법:</b> 문헌고찰에서 이론 비교 섹션을 작성하거나 자신의 연구에 적합한 이론을 선택하세요.
+                                </div>
+                                """, unsafe_allow_html=True)
+                                st.markdown(comparison['이론적차이'])
+                                st.markdown("---")
+                            
+                            # 주요 차별점
+                            if '주요차별점' in comparison:
+                                st.markdown("### 🔍 주요 차별점")
+                                st.info(comparison['주요차별점'])
+                                st.markdown("---")
+                            
+                            # 연구 제안
+                            if '연구제안' in comparison:
+                                st.markdown("### 💡 새로운 연구 제안")
+                                st.markdown("""
+                                <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 5px solid #2196F3; margin-bottom: 15px;">
+                                💡 <b>활용 방법:</b> 이 제안을 바탕으로 연구 계획서를 작성하거나 지도교수와 논의할 수 있습니다.
+                                </div>
+                                """, unsafe_allow_html=True)
+                                st.success(comparison['연구제안'])
                         else:
                             st.error(comparison['error'])
                         
