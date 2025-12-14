@@ -727,15 +727,13 @@ def main():
             if len(st.session_state.papers) > 1:
                 st.info(f"💡 {len(st.session_state.papers)}개 논문 비교 가능")
         
-        # 통계 표시
+        # 사용 통계 (작게 표시)
         st.markdown("---")
-        st.markdown("### 📊 사용 통계")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("👁️ 방문횟수", f"{st.session_state.visit_count}회")
+            st.caption(f"👁️ 누적 방문: **{st.session_state.visit_count}회**")
         with col2:
-            st.metric("📝 분석횟수", f"{st.session_state.analysis_count}회")
-        st.caption("ℹ️ 현재 세션 기준")
+            st.caption(f"📝 누적 분석: **{st.session_state.analysis_count}회**")
     
     # 메인 영역
     if not st.session_state.papers:
