@@ -377,94 +377,6 @@ def gpt_analyze_references(text):
     except Exception as e:
         return {"error": f"참고문헌 분석 실패: {str(e)}"}
 
-# ==================== 논문 비교 분석 ====================
-
-def gpt_compare_papers(papers_data, max_words_per_paper=2000):
-    """GPT를 사용하여 여러 논문을 심층 비교합니다."""
-    try:
-        client = get_openai_client()
-        if not client:
-            return {"error": "OpenAI API 키가 설정되지 않았습니다."}
-        
-        if len(papers_data) < 2:
-            return {"error": "비교를 위해서는 최소 2개의 논문이 필요합니다."}
-        
-        # 각 논문의 주요 정보 추출
-        papers_summary = []
-        for name, data in papers_data.items():
-            text = data.get('text', '')
-            words = text.split()[:max_words_per_paper]
-            truncated = ' '.join(words)
-            
-            # 기존 분석 결과 활용
-            main_analysis = data.get('main_analysis', {})
-            keywords = data.get('keywords_themes', {})
-            
-            summary = f"""
-논문명: {name}
-연구목적: {main_analysis.get('연구목적', 'N/A')[:200]}
-연구방법: {main_analysis.get('연구방법', 'N/A')[:200]}
-주요발견: {main_analysis.get('주요발견', 'N/A')[:200]}
-연구질문: {keywords.get('연구질문', 'N/A')[:200]}
-"""
-            papers_summary.append(summary)
-        
-        combined_summary = "\n\n---\n\n".join(papers_summary)
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "당신은 학술 논문 비교분석 전문가입니다. 대학원생이 문헌고찰과 연구 설계에 활용할 수 있도록 실질적인 인사이트를 제공합니다."},
-                {"role": "user", "content": f"""다음 논문들을 비교 분석하여 대학원생의 연구에 도움이 되도록 답변해주세요:
-
-{combined_summary}
-
-다음 형식으로 작성해주세요:
-
-[연구공백]
-두 논문이 공통으로 다룬 주제와 각각이 다루지 않은 영역을 분석하여, 새로운 연구 기회를 3-5개 제시하세요.
-
-[방법론비교]
-각 논문의 연구방법(정량/정성/혼합, 표본, 데이터수집)을 비교하고, 각 방법론의 장단점을 설명하세요.
-
-[이론적차이]
-각 논문이 사용한 이론적 프레임워크를 비교하고, 어떤 상황에 어떤 이론이 적합한지 설명하세요.
-
-[주요차별점]
-두 논문의 핵심적인 차이점 3가지를 명확히 제시하세요.
-
-[연구제안]
-이 두 논문을 바탕으로 새로운 연구를 설계한다면 어떤 방향이 좋을지 구체적으로 제안하세요."""}
-            ],
-            temperature=0.4,
-            max_tokens=2000
-        )
-        
-        result = response.choices[0].message.content
-        
-        # 섹션별로 파싱
-        sections = {}
-        current_section = None
-        current_content = []
-        
-        for line in result.split('\n'):
-            if line.strip().startswith('[') and line.strip().endswith(']'):
-                if current_section:
-                    sections[current_section] = '\n'.join(current_content).strip()
-                current_section = line.strip()[1:-1]
-                current_content = []
-            else:
-                if current_section and line.strip():
-                    current_content.append(line)
-        
-        if current_section:
-            sections[current_section] = '\n'.join(current_content).strip()
-        
-        return sections if sections else {"분석결과": result}
-        
-    except Exception as e:
-        return {"error": f"논문 비교 실패: {str(e)}"}
-
 # ==================== 텍스트 전처리 ====================
 def clean_text(text):
     """텍스트를 정제하고 정규화합니다."""
@@ -834,22 +746,13 @@ def main():
                 if meta['creator']:
                     cols[3].metric("작성 도구", meta['creator'][:30] if meta['creator'] else 'N/A')
         
-        # 탭 생성 (논문 2개 이상일 때 비교 탭 추가)
-        if len(st.session_state.papers) > 1:
-            tabs = st.tabs([
-                "🤖 종합 분석",
-                "📊 구조 분석",
-                "🎯 주제 & 키워드",
-                "📚 참고문헌",
-                "🔄 논문 비교"
-            ])
-        else:
-            tabs = st.tabs([
-                "🤖 종합 분석",
-                "📊 구조 분석",
-                "🎯 주제 & 키워드",
-                "📚 참고문헌"
-            ])
+        # 탭 생성
+        tabs = st.tabs([
+            "🤖 종합 분석",
+            "📊 구조 분석",
+            "🎯 주제 & 키워드",
+            "📚 참고문헌"
+        ])
         
         # 탭 1: 종합 분석
         with tabs[0]:
@@ -1375,107 +1278,7 @@ def main():
                         st.info("네트워크를 생성하기에 충분한 정보가 없습니다.")
                 else:
                     st.info("핵심문헌 또는 연구자 정보가 없어 네트워크를 생성할 수 없습니다.")
-        
-        # 탭 5: 논문 비교 (2개 이상일 때만)
-        if len(st.session_state.papers) > 1:
-            with tabs[4]:
-                st.markdown('<div class="section-header">🔄 논문 비교 분석</div>', unsafe_allow_html=True)
-                st.caption("🔹 두 논문을 비교하여 연구 공백, 방법론 차이, 이론적 차이를 분석합니다")
-                
-                # 비교할 논문 선택
-                st.markdown("### 📝 비교할 논문 선택")
-                paper_names = list(st.session_state.papers.keys())
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    paper1 = st.selectbox("논문 1", paper_names, key="compare_paper1")
-                with col2:
-                    paper2_options = [p for p in paper_names if p != paper1]
-                    paper2 = st.selectbox("논문 2", paper2_options, key="compare_paper2") if paper2_options else None
-                
-                if paper2:
-                    st.markdown("---")
-                    
-                    # 세션에 비교 결과 저장 키 생성
-                    comparison_key = f"{paper1}_vs_{paper2}"
-                    
-                    # 비교 분석 실행 버튼
-                    if st.button("🚀 심층 비교 분석 시작", type="primary", use_container_width=True):
-                        with st.spinner("📊 논문을 비교 분석 중입니다... (약 20-30초 소요)"):
-                            # GPT 비교 분석
-                            compare_data = {
-                                paper1: st.session_state.papers[paper1],
-                                paper2: st.session_state.papers[paper2]
-                            }
-                            comparison = gpt_compare_papers(compare_data)
-                            
-                            # 세션에 결과 저장
-                            if 'comparisons' not in st.session_state:
-                                st.session_state.comparisons = {}
-                            st.session_state.comparisons[comparison_key] = comparison
-                            st.rerun()
-                    
-                    # 저장된 비교 결과 표시
-                    if 'comparisons' in st.session_state and comparison_key in st.session_state.comparisons:
-                        comparison = st.session_state.comparisons[comparison_key]
-                        
-                        if 'error' not in comparison:
-                            st.success("✅ 비교 분석 완료!")
-                            
-                            # 연구 공백
-                            if '연구공백' in comparison:
-                                st.markdown("### 🎯 연구 공백 (Research Gap)")
-                                st.markdown("""
-                                <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50; margin-bottom: 15px;">
-                                💡 <b>활용 방법:</b> 이 정보를 활용하여 새로운 연구 주제를 선정하거나 연구 제안서의 차별성을 강조할 수 있습니다.
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.markdown(comparison['연구공백'])
-                                st.markdown("---")
-                            
-                            # 방법론 비교
-                            if '방법론비교' in comparison:
-                                st.markdown("### 🔬 방법론 비교")
-                                st.markdown("""
-                                <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; border-left: 5px solid #FF9800; margin-bottom: 15px;">
-                                💡 <b>활용 방법:</b> 각 방법론의 장단점을 이해하고 자신의 연구 상황에 적합한 방법을 선택하세요.
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.markdown(comparison['방법론비교'])
-                                st.markdown("---")
-                            
-                            # 이론적 차이
-                            if '이론적차이' in comparison:
-                                st.markdown("### 📚 이론적 프레임워크 비교")
-                                st.markdown("""
-                                <div style="background-color: #f3e5f5; padding: 15px; border-radius: 8px; border-left: 5px solid #9C27B0; margin-bottom: 15px;">
-                                💡 <b>활용 방법:</b> 문헌고찰에서 이론 비교 섹션을 작성하거나 자신의 연구에 적합한 이론을 선택하세요.
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.markdown(comparison['이론적차이'])
-                                st.markdown("---")
-                            
-                            # 주요 차별점
-                            if '주요차별점' in comparison:
-                                st.markdown("### 🔍 주요 차별점")
-                                st.info(comparison['주요차별점'])
-                                st.markdown("---")
-                            
-                            # 연구 제안
-                            if '연구제안' in comparison:
-                                st.markdown("### 💡 새로운 연구 제안")
-                                st.markdown("""
-                                <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 5px solid #2196F3; margin-bottom: 15px;">
-                                💡 <b>활용 방법:</b> 이 제안을 바탕으로 연구 계획서를 작성하거나 지도교수와 논의할 수 있습니다.
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.success(comparison['연구제안'])
-                        else:
-                            st.error(comparison['error'])
-                    else:
-                        st.info("💡 '심층 비교 분석 시작' 버튼을 클릭하여 분석을 시작하세요.")
-                else:
-                    st.warning("비교할 두 번째 논문을 선택해주세요.")
 
 if __name__ == "__main__":
     main()
+
