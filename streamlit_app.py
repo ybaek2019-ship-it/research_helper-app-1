@@ -588,12 +588,9 @@ def main():
     if 'papers' not in st.session_state:
         st.session_state.papers = {}
     if 'visit_count' not in st.session_state:
-        st.session_state.visit_count = 0
+        st.session_state.visit_count = 1  # 첫 방문 시 1로 초기화
     if 'analysis_count' not in st.session_state:
         st.session_state.analysis_count = 0
-    
-    # 방문횟수 증가 (페이지 로드 시)
-    st.session_state.visit_count += 1
     
     # 사이드바
     with st.sidebar:
