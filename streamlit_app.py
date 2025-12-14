@@ -355,85 +355,232 @@ def gpt_analyze_keywords_themes(text, max_words=3000):
     except Exception as e:
         return {"error": f"주제 분석 실패: {str(e)}"}
 
+# ==================== Python 기반 참고문헌 파싱 ====================
+
+def extract_references_section(text):
+    """텍스트에서 참고문헌 섹션을 추출합니다."""
+    # 여러 패턴으로 참고문헌 섹션 찾기
+    patterns = [
+        r'(?:^|\n)(?:References|REFERENCES|Bibliography|BIBLIOGRAPHY|Works Cited|Literature Cited|참고문헌|參考文獻)\s*\n(.*?)(?=\n(?:Appendix|APPENDIX|부록|Table|Figure|$))',
+        r'(?:^|\n)(?:References|REFERENCES)\s*\n(.*)',
+        r'(?:^|\n)참고문헌\s*\n(.*)',
+    ]
+    
+    # 논문 끝 30% 부분에서 검색 (참고문헌은 일반적으로 끝에 위치)
+    text_len = len(text)
+    search_start = int(text_len * 0.6)
+    search_text = text[search_start:]
+    
+    for pattern in patterns:
+        match = re.search(pattern, search_text, re.IGNORECASE | re.DOTALL)
+        if match:
+            ref_text = match.group(1)
+            # 너무 짧으면 무시 (최소 200자)
+            if len(ref_text.strip()) > 200:
+                return ref_text
+    
+    return None
+
+def parse_single_reference(ref_line):
+    """단일 참고문헌을 파싱하여 저자, 연도, 제목 등을 추출합니다."""
+    ref_data = {
+        'raw': ref_line,
+        'authors': [],
+        'year': None,
+        'title': None,
+        'journal': None,
+        'type': 'unknown'
+    }
+    
+    # 연도 추출 (1900-2099)
+    year_match = re.search(r'\b(19\d{2}|20\d{2})\b', ref_line)
+    if year_match:
+        ref_data['year'] = int(year_match.group(1))
+    
+    # APA 스타일 저자 추출: "Author, A. B., & Author2, C. D."
+    # 첫 번째 마침표나 괄호 전까지가 저자
+    author_patterns = [
+        r'^([^.()]+(?:et al\.)?)[,.]?\s*\(',  # Author, A. (Year)
+        r'^([^.()]+)\s+\(\d{4}\)',  # Author (Year)
+        r'^\[?\d+\]\s*([^.()]+)[,.]',  # [1] Author,
+    ]
+    
+    for pattern in author_patterns:
+        author_match = re.search(pattern, ref_line)
+        if author_match:
+            authors_str = author_match.group(1).strip()
+            # 여러 저자 분리
+            authors = re.split(r'[,&]|\sand\s', authors_str)
+            ref_data['authors'] = [a.strip() for a in authors if a.strip() and len(a.strip()) > 2]
+            break
+    
+    # 제목 추출 (일반적으로 첫 번째 마침표와 두 번째 마침표 사이, 또는 괄호 뒤)
+    title_patterns = [
+        r'\((?:\d{4})\)\.\s*([^.]+)\.',  # (Year). Title.
+        r'\(\d{4}\)[,.]?\s*([^.]+?)[.]',  # (Year), Title.
+        r'"\s*([^"]+)\s*"',  # "Title"
+    ]
+    
+    for pattern in title_patterns:
+        title_match = re.search(pattern, ref_line)
+        if title_match:
+            ref_data['title'] = title_match.group(1).strip()
+            break
+    
+    # 저널/출판물 추출 (이탤릭체나 특정 패턴)
+    journal_patterns = [
+        r'\.\s+([A-Z][^,.]+(?:Journal|Review|Science|Studies|Research|Proceedings)[^,.]*)',
+        r'\.\s+In\s+([^.]+)\.',
+    ]
+    
+    for pattern in journal_patterns:
+        journal_match = re.search(pattern, ref_line, re.IGNORECASE)
+        if journal_match:
+            ref_data['journal'] = journal_match.group(1).strip()
+            break
+    
+    # 타입 판단
+    if 'dissertation' in ref_line.lower() or 'thesis' in ref_line.lower():
+        ref_data['type'] = 'dissertation'
+    elif 'conference' in ref_line.lower() or 'proceedings' in ref_line.lower():
+        ref_data['type'] = 'conference'
+    elif any(word in ref_line.lower() for word in ['book', 'press', 'publisher']):
+        ref_data['type'] = 'book'
+    elif ref_data['journal']:
+        ref_data['type'] = 'journal'
+    
+    return ref_data
+
+def parse_references(text):
+    """참고문헌 섹션을 파싱하여 구조화된 데이터로 반환합니다."""
+    ref_section = extract_references_section(text)
+    
+    if not ref_section:
+        return {
+            'found': False,
+            'references': [],
+            'total_count': 0,
+            'error': '참고문헌 섹션을 찾을 수 없습니다.'
+        }
+    
+    # 개별 참고문헌 분리
+    # 패턴: 줄바꿈으로 시작하고 대문자나 [숫자]로 시작하는 라인
+    lines = ref_section.split('\n')
+    references = []
+    current_ref = ""
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # 새 참고문헌의 시작 판단:
+        # 1. [숫자]로 시작
+        # 2. 대문자로 시작하고 이전 ref가 마침표로 끝남
+        # 3. 명확한 저자 패턴 (Author, A.)
+        is_new_ref = (
+            re.match(r'^\[?\d+\]', line) or  # [1] 또는 1.
+            (re.match(r'^[A-Z]', line) and current_ref.endswith('.')) or
+            re.match(r'^[A-Z][a-z]+,\s+[A-Z]\.', line)  # Author, A.
+        )
+        
+        if is_new_ref and current_ref:
+            # 이전 참고문헌 저장
+            parsed = parse_single_reference(current_ref)
+            if parsed['authors'] or parsed['year']:  # 최소한 저자나 연도가 있어야 함
+                references.append(parsed)
+            current_ref = line
+        else:
+            current_ref += " " + line if current_ref else line
+    
+    # 마지막 참고문헌 저장
+    if current_ref:
+        parsed = parse_single_reference(current_ref)
+        if parsed['authors'] or parsed['year']:
+            references.append(parsed)
+    
+    # 통계 계산
+    years = [ref['year'] for ref in references if ref['year']]
+    types = [ref['type'] for ref in references]
+    
+    return {
+        'found': True,
+        'references': references,
+        'total_count': len(references),
+        'years': years,
+        'year_min': min(years) if years else None,
+        'year_max': max(years) if years else None,
+        'types': {
+            'journal': types.count('journal'),
+            'book': types.count('book'),
+            'conference': types.count('conference'),
+            'dissertation': types.count('dissertation'),
+            'unknown': types.count('unknown')
+        },
+        'raw_section': ref_section[:5000]  # GPT 분석용으로 일부 저장
+    }
+
 def gpt_analyze_references(text):
-    """GPT를 사용하여 참고문헌을 분석합니다."""
+    """Python으로 파싱한 참고문헌을 GPT로 분석합니다."""
     try:
+        # 1단계: Python으로 참고문헌 파싱
+        parsed_refs = parse_references(text)
+        
+        if not parsed_refs['found']:
+            return {"error": parsed_refs['error']}
+        
         client = get_openai_client()
         if not client:
-            return {"error": "OpenAI API 키가 설정되지 않았습니다."}
+            # GPT 없어도 기본 통계는 제공
+            return {
+                '통계요약': f"""총 {parsed_refs['total_count']}개의 참고문헌
+연도 범위: {parsed_refs['year_min']}-{parsed_refs['year_max']}
+저널논문: {parsed_refs['types']['journal']}개
+단행본: {parsed_refs['types']['book']}개
+학술대회: {parsed_refs['types']['conference']}개
+학위논문: {parsed_refs['types']['dissertation']}개""",
+                'parsed_data': parsed_refs
+            }
         
-        # References 섹션 찾기 - 더 넓은 범위로 검색
-        ref_section = ""
-        patterns = [
-            r'References\s*\n(.*?)(?=\n\n[A-Z][a-z]+|\Z)',
-            r'REFERENCES\s*\n(.*?)(?=\n\n[A-Z][a-z]+|\Z)',
-            r'Bibliography\s*\n(.*?)(?=\n\n[A-Z][a-z]+|\Z)',
-            r'참고문헌\s*\n(.*?)(?=\n\n|\Z)',
-            r'References\s+(.*)',
-            r'REFERENCES\s+(.*)',
-        ]
+        # 2단계: GPT로 핵심문헌 선정 및 인사이트 생성
+        # 파싱된 데이터를 요약하여 전달
+        refs_summary = []
+        for i, ref in enumerate(parsed_refs['references'][:50], 1):  # 최대 50개만
+            authors = ', '.join(ref['authors'][:3]) if ref['authors'] else 'Unknown'
+            if len(ref['authors']) > 3:
+                authors += ' et al.'
+            year = ref['year'] or 'N/A'
+            title = ref['title'][:100] if ref['title'] else 'No title'
+            refs_summary.append(f"{i}. {authors} ({year}). {title}")
         
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-            if match:
-                ref_section = match.group(1)[:8000]  # 더 많은 텍스트 포함
-                break
-        
-        # 참고문헌이 없으면 텍스트 끝부분 사용
-        if not ref_section or len(ref_section) < 200:
-            # 텍스트의 마지막 20% 사용
-            last_part = text[int(len(text) * 0.8):]
-            if len(last_part) > 500:
-                ref_section = last_part[:8000]
-        
-        if not ref_section or len(ref_section) < 200:
-            return {"error": "참고문헌 섹션을 찾을 수 없습니다. 논문에 참고문헌이 포함되어 있는지 확인해주세요."}
+        refs_text = '\n'.join(refs_summary)
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문의 참고문헌을 분석하는 전문가입니다. 서지정보를 정확히 추출하고 대학원생에게 유용한 인사이트를 제공합니다. **중요: 사실과 추론을 구분하여 표기하세요.**"},
-                {"role": "user", "content": f"""다음 참고문헌 목록을 분석하여 대학원생이 문헌 조사에 활용할 수 있도록 상세히 정리해주세요.
-**중요**: [통계요약]과 [핵심문헌]은 [사실], [시사점]은 [추론]으로 명확히 구분하세요.
+                {"role": "system", "content": "당신은 참고문헌 분석 전문가입니다. 이미 파싱된 정확한 참고문헌 데이터를 바탕으로 핵심문헌을 선정하고 연구 트렌드를 분석합니다. **절대 새로운 참고문헌을 만들어내지 마세요.**"},
+                {"role": "user", "content": f"""다음은 논문에서 Python으로 추출한 {parsed_refs['total_count']}개의 참고문헌입니다.
+이 목록에서 가장 중요한 5-10개의 핵심문헌을 선정하고 연구 트렌드를 분석해주세요.
 
-{ref_section}
+**중요: 아래 목록에 있는 참고문헌만 사용하세요. 새로 만들지 마세요.**
+
+참고문헌 목록:
+{refs_text}
 
 다음 형식으로 작성해주세요:
 
-[통계요약]
-• 총 참고문헌: XX개
-• 연도 범위: XXXX-XXXX년
-• 최근 5년 이내: XX개 (XX%)
-• 평균 저자수: X.X명
-
 [핵심문헌]
-각 문헌을 다음 형식으로 나열 (최대 8개):
-• 저자(연도). 제목. 저널/출판사.
-  → [사실] 이 논문에서 X회 인용됨 (또는 참고문헌 목록에 포함된 사실)
-  → [추론] 이 분야의 이론적 기초를 제공/연구방법론을 제시/핵심 실증연구 등의 추천 사유
+• 위 목록의 번호와 함께 핵심문헌 5-10개 선정
+→ 왜 중요한지 간단히 설명
 
-[주요저널]
-• Journal Name 1 (XX회 인용)
-• Journal Name 2 (XX회 인용)
-• Journal Name 3 (XX회 인용)
-
-[영향력있는연구자]
-• 연구자1 (XX회 인용) - 주요 연구 주제
-• 연구자2 (XX회 인용) - 주요 연구 주제
-• 연구자3 (XX회 인용) - 주요 연구 주제
-
-[출판물유형]
-• 저널논문: XX개
-• 단행본/저서: XX개
-• 학술대회: XX개
-• 학위논문: XX개
-• 기타: XX개
+[연구트렌드]
+연도별 분포와 주제 흐름 분석
 
 [시사점]
-이 참고문헌 목록이 보여주는 연구 흐름, 주요 이론적 기반, 또는 연구방법론적 특징을 2-3문장으로 요약"""}
+이 참고문헌이 보여주는 연구의 특징"""}
             ],
             temperature=0.2,
-            max_tokens=2000
+            max_tokens=1500
         )
         
         result = response.choices[0].message.content
@@ -455,6 +602,17 @@ def gpt_analyze_references(text):
         
         if current_section:
             sections[current_section] = '\n'.join(current_content).strip()
+        
+        # 통계요약 추가
+        sections['통계요약'] = f"""총 {parsed_refs['total_count']}개의 참고문헌 (Python 파싱)
+• 연도 범위: {parsed_refs['year_min']}-{parsed_refs['year_max']}
+• 저널논문: {parsed_refs['types']['journal']}개
+• 단행본/저서: {parsed_refs['types']['book']}개  
+• 학술대회: {parsed_refs['types']['conference']}개
+• 학위논문: {parsed_refs['types']['dissertation']}개
+• 기타: {parsed_refs['types']['unknown']}개"""
+        
+        sections['parsed_data'] = parsed_refs  # 원본 파싱 데이터 저장
         
         return sections if sections else {"error": "참고문헌 분석 실패"}
         
