@@ -587,10 +587,6 @@ def main():
     # 세션 상태 초기화
     if 'papers' not in st.session_state:
         st.session_state.papers = {}
-    if 'visit_count' not in st.session_state:
-        st.session_state.visit_count = 1  # 첫 방문 시 1로 초기화
-    if 'analysis_count' not in st.session_state:
-        st.session_state.analysis_count = 0
     
     # 사이드바
     with st.sidebar:
@@ -698,9 +694,6 @@ def main():
                                 progress_bar.progress(100)
                                 status_text.text("✅ 분석 완료!")
                                 
-                                # 분석횟수 증가
-                                st.session_state.analysis_count += 1
-                                
                                 st.success(f"**'{name}'** 분석이 완료되었습니다!")
                                 st.balloons()
         
@@ -724,13 +717,6 @@ def main():
             if len(st.session_state.papers) > 1:
                 st.info(f"💡 {len(st.session_state.papers)}개 논문 비교 가능")
         
-        # 사용 통계 (작게 표시)
-        st.markdown("---")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.caption(f"👁️ 누적 방문: **{st.session_state.visit_count}회**")
-        with col2:
-            st.caption(f"📝 누적 분석: **{st.session_state.analysis_count}회**")
     
     # 메인 영역
     if not st.session_state.papers:
