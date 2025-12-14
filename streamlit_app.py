@@ -412,13 +412,11 @@ CRITICAL RULES:
 1. Count references by author–year–title unit ONLY
 2. EXCLUDE from counting: DOI, UCI, URLs, page numbers, headers, footers, line breaks
 3. If a reference spans multiple lines, count as ONE item
-4. Do NOT infer, guess, or complete missing information
-5. Extract only what is explicitly written
+4. For statistics and extraction: Do NOT infer or guess - state only facts
+5. For recommendation reasons: You MAY provide informed analysis marked as [추론]
 6. Preserve original language (Korean/English/etc.)
-7. If information is missing or ambiguous, state "Cannot be determined"
-
-Your analysis must be factual and mechanical - no interpretation or external knowledge."""},
-                {"role": "user", "content": f"""Analyze the following reference list strictly based on what is written.
+7. Clearly separate [사실] (facts) from [추론] (inference)"""},
+                {"role": "user", "content": f"""Analyze the following reference list.
 
 {ref_section}
 
@@ -431,23 +429,30 @@ Provide your analysis in the following format:
 • 모호한 항목: XX개 (if any)
 
 [핵심문헌]
-List up to 8 references in this exact format:
+**연구에 가장 중요한 참고문헌들입니다. 각 문헌의 추천 사유를 확인하세요.**
+
+List up to 8 most significant references:
 • Author(Year). Title. Source.
-  [Facts only - no interpretation]
+  → [사실] (State only what is verifiable: e.g., appears in reference list, cited X times if explicitly shown)
+  → [추론] (Provide recommendation reason: e.g., foundational theory, key methodology, seminal work in the field)
 
 [주요저널]
 • Journal Name 1 (XX회 출현)
 • Journal Name 2 (XX회 출현)
+• Journal Name 3 (XX회 출현)
 (List only if journal names are explicitly identifiable)
 
 [영향력있는저자]
 • Author 1 (XX회 출현)
 • Author 2 (XX회 출현)
+• Author 3 (XX회 출현)
 (List only if author names are clearly extractable)
 
 [출판물유형]
 • 저널논문: XX개
 • 단행본: XX개
+• 학술대회: XX개
+• 학위논문: XX개
 • 기타: XX개
 (Count only based on explicit indicators)
 
@@ -456,11 +461,10 @@ List any:
 - Ambiguous separations
 - Missing critical fields
 - Unparseable entries
-- Items that cannot be classified
 
 If any section cannot be determined, write "Cannot be determined from the given text.\""""}
             ],
-            temperature=0.1,
+            temperature=0.2,
             max_tokens=3000
         )
         
