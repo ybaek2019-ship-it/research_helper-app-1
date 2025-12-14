@@ -1365,10 +1365,10 @@ def main():
                                 st.markdown(f"• {pub_type}")
                 
                 with col2:
-                    # 영향력있는연구자
-                    if '영향력있는연구자' in refs and refs['영향력있는연구자']:
-                        st.markdown("### 👨‍🔬 영향력 있는 연구자")
-                        researchers = [r.strip() for r in refs['영향력있는연구자'].strip().split('\n') if r.strip()]
+                    # 영향력있는저자
+                    if '영향력있는저자' in refs and refs['영향력있는저자']:
+                        st.markdown("### 👨‍🔬 영향력 있는 저자")
+                        researchers = [r.strip() for r in refs['영향력있는저자'].strip().split('\n') if r.strip()]
                         researchers = [r[1:].strip() if r.startswith(('•', '-', '*')) else r for r in researchers]
                         for researcher in researchers[:5]:
                             if researcher:
@@ -1398,14 +1398,16 @@ def main():
                 """, unsafe_allow_html=True)
                 
                 # 핵심문헌과 연구자 정보로 네트워크 생성
-                if '핵심문헌' in refs and refs['핵심문헌'] and '영향력있는연구자' in refs and refs['영향력있는연구자']:
+                if '핵심문헌' in refs and refs['핵심문헌'] and '영향력있는저자' in refs and refs['영향력있는저자']:
                     G = nx.Graph()
                     
                     # 핵심문헌에서 저자 추출 (간단하게 파싱)
                     core_refs = [r.strip() for r in refs['핵심문헌'].strip().split('\n') if r.strip()]
                     core_refs = [r[1:].strip() if r.startswith(('•', '-', '*')) else r for r in core_refs]
+                    # → [사실]/[추론] 라인 제외
+                    core_refs = [r for r in core_refs if not r.startswith('→')]
                     
-                    researchers = [r.strip() for r in refs['영향력있는연구자'].strip().split('\n') if r.strip()]
+                    researchers = [r.strip() for r in refs['영향력있는저자'].strip().split('\n') if r.strip()]
                     researchers = [r[1:].strip() if r.startswith(('•', '-', '*')) else r for r in researchers]
                     
                     # 연구자 노드 추가
@@ -1510,7 +1512,8 @@ def main():
                     else:
                         st.info("네트워크를 생성하기에 충분한 정보가 없습니다.")
                 else:
-                    st.info("핵심문헌 또는 연구자 정보가 없어 네트워크를 생성할 수 없습니다.")
+                    st.info("핵심문헌 또는 저자 정보가 없어 네트워크를 생성할 수 없습니다.")
+                    st.caption(f"디버그: 핵심문헌 존재={('핵심문헌' in refs and bool(refs.get('핵심문헌')))}, 영향력있는저자 존재={('영향력있는저자' in refs and bool(refs.get('영향력있는저자')))}")
 
 if __name__ == "__main__":
     main()
