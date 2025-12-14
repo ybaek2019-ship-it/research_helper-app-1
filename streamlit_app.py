@@ -406,57 +406,83 @@ def gpt_analyze_references(text):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문의 참고문헌을 분석하는 전문가입니다. 서지정보를 정확히 추출하고 대학원생에게 유용한 인사이트를 제공합니다. **중요: 사실과 추론을 구분하여 표기하세요.**"},
-                {"role": "user", "content": f"""다음 참고문헌 목록을 분석하여 대학원생이 문헌 조사에 활용할 수 있도록 상세히 정리해주세요.
-**중요**: [통계요약]과 [핵심문헌]은 [사실], [시사점]은 [추론]으로 명확히 구분하세요.
+                {"role": "system", "content": """You are NOT a researcher, academic writer, or literature reviewer.
 
-**참고문헌 계산 규칙**:
-1. 저자-연도-제목 단위로 독립된 참고문헌 1건으로 계산
-2. DOI, UCI, 줄바꿈, 페이지 중간에 삽입된 본문 표식은 계산에서 제외
-3. 국문·영문, 단행본·논문 모두 동일 기준 적용
-4. 예시:
-   - "Smith, J. (2020). Title. Journal." = 1건
-   - "Smith, J. (2020). Title.\nDOI: 10.xxxx/xxxx" = 1건 (DOI는 제외)
-   - "Kim, H. (2021). 제목. 저널." = 1건
+You are a bibliographic parser and verifier.
+Your role is strictly limited to mechanical text processing.
 
+ALLOWED actions:
+- count
+- separate
+- extract
+- match
+- validate
+
+FORBIDDEN actions (critical):
+- infer or guess missing information
+- complete or correct references
+- normalize citation style
+- translate text
+- merge items by similarity
+- rely on external knowledge or training data
+- assume APA, MLA, Chicago, or any citation style
+- hallucinate under any circumstance
+
+If information is missing, broken, ambiguous, or unclear,
+you MUST explicitly output:
+"Cannot be determined from the given text.\""""},
+                {"role": "user", "content": f"""You must work ONLY with the text provided below.
+Treat it as raw, unverified input.
+Do NOT assume it is a correct reference list.
+
+--------------------------------------------------
+TASK 1: Reference counting
+
+Rules:
+- One reference = one unique author–year–title unit
+- Line breaks, page headers, footers, section titles, page numbers,
+  DOI, UCI, URLs are NOT references
+- If a reference spans multiple lines, treat it as one item
+- If separation is ambiguous, do NOT guess; flag it
+
+Output format:
+[Reference Count]
+Total references: <number>
+Ambiguous items: <None or list>
+
+--------------------------------------------------
+TASK 2: Bibliographic field extraction
+
+For EACH reference, extract ONLY what is explicitly written.
+
+Fields:
+- Authors
+- Year
+- Title
+- Source (journal or publisher)
+- Volume
+- Issue
+- Pages
+- DOI or URL
+
+Rules:
+- Do NOT infer missing fields
+- Do NOT fix spelling, punctuation, or formatting
+- Preserve original language and text exactly
+- If a field is not explicitly present, use null
+
+Output format:
+[Extracted References]
+JSON array only.
+No explanations, no commentary, no extra text.
+
+--------------------------------------------------
+BEGIN INPUT TEXT
 {ref_section}
-
-다음 형식으로 작성해주세요:
-
-[통계요약]
-• 총 참고문헌: XX개
-• 연도 범위: XXXX-XXXX년
-• 최근 5년 이내: XX개 (XX%)
-• 평균 저자수: X.X명
-
-[핵심문헌]
-각 문헌을 다음 형식으로 나열 (최대 8개):
-• 저자(연도). 제목. 저널/출판사.
-  → [사실] 이 논문에서 X회 인용됨 (또는 참고문헌 목록에 포함된 사실)
-  → [추론] 이 분야의 이론적 기초를 제공/연구방법론을 제시/핵심 실증연구 등의 추천 사유
-
-[주요저널]
-• Journal Name 1 (XX회 인용)
-• Journal Name 2 (XX회 인용)
-• Journal Name 3 (XX회 인용)
-
-[영향력있는연구자]
-• 연구자1 (XX회 인용) - 주요 연구 주제
-• 연구자2 (XX회 인용) - 주요 연구 주제
-• 연구자3 (XX회 인용) - 주요 연구 주제
-
-[출판물유형]
-• 저널논문: XX개
-• 단행본/저서: XX개
-• 학술대회: XX개
-• 학위논문: XX개
-• 기타: XX개
-
-[시사점]
-이 참고문헌 목록이 보여주는 연구 흐름, 주요 이론적 기반, 또는 연구방법론적 특징을 2-3문장으로 요약"""}
+END INPUT TEXT"""}
             ],
-            temperature=0.2,
-            max_tokens=2000
+            temperature=0.1,
+            max_tokens=3000
         )
         
         result = response.choices[0].message.content
