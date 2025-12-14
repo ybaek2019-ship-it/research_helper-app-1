@@ -56,6 +56,90 @@ def get_openai_client():
 
 # ==================== GPT 기반 분석 함수 ====================
 
+def gpt_verify_analysis(original_text, analysis_result, analysis_type, max_words=2000):
+    """GPT 분석 결과를 원본 텍스트와 대조하여 할루시네이션을 검증합니다."""
+    try:
+        client = get_openai_client()
+        if not client:
+            return {"verified": True, "warning": ""}  # API 키 없으면 검증 생략
+        
+        words = original_text.split()
+        truncated_text = ' '.join(words[:max_words])
+        
+        # 분석 결과를 문자열로 변환
+        if isinstance(analysis_result, dict):
+            analysis_str = "\n".join([f"{k}: {v}" for k, v in analysis_result.items() if k != 'error'])
+        else:
+            analysis_str = str(analysis_result)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 사실 검증 전문가입니다. AI가 생성한 분석 결과가 원본 텍스트에 근거했는지 엄격히 검증합니다."},
+                {"role": "user", "content": f"""다음은 AI가 생성한 {analysis_type} 분석 결과입니다. 원본 논문 텍스트와 비교하여 할루시네이션(환각)이 있는지 검증해주세요.
+
+**원본 논문 텍스트:**
+{truncated_text}
+
+**AI 분석 결과:**
+{analysis_str}
+
+**검증 기준:**
+1. 분석 결과에 언급된 내용이 원본 텍스트에 실제로 존재하는가?
+2. 수치, 인용, 고유명사가 정확한가?
+3. 논문에 없는 내용을 AI가 지어낸 것은 없는가?
+
+다음 형식으로 답변해주세요:
+[검증결과]
+거짓 또는 사실
+
+[거짓항목]
+(거짓이 발견된 경우만) 거짓으로 판단된 구체적 항목들을 나열
+
+[사유]
+(거짓이 발견된 경우만) 왜 거짓인지 상세히 설명
+
+[권고사항]
+사용자에게 어떻게 해야 하는지 조언"""}
+            ],
+            temperature=0.1,
+            max_tokens=1000
+        )
+        
+        result = response.choices[0].message.content
+        
+        # 검증 결과 파싱
+        verification = {}
+        current_section = None
+        current_content = []
+        
+        for line in result.split('\n'):
+            if line.strip().startswith('[') and line.strip().endswith(']'):
+                if current_section:
+                    verification[current_section] = '\n'.join(current_content).strip()
+                current_section = line.strip()[1:-1]
+                current_content = []
+            else:
+                if current_section and line.strip():
+                    current_content.append(line)
+        
+        if current_section:
+            verification[current_section] = '\n'.join(current_content).strip()
+        
+        # 거짓 여부 판단
+        is_false = '거짓' in verification.get('검증결과', '사실').lower() or 'false' in verification.get('검증결과', '사실').lower()
+        
+        return {
+            "verified": not is_false,
+            "result": verification.get('검증결과', '사실'),
+            "false_items": verification.get('거짓항목', ''),
+            "reason": verification.get('사유', ''),
+            "recommendation": verification.get('권고사항', '')
+        }
+        
+    except Exception as e:
+        return {"verified": True, "warning": f"검증 중 오류: {str(e)}"}
+
 def gpt_analyze_all(text, max_words=3500):
     """GPT를 사용하여 논문을 종합적으로 분석합니다."""
     try:
@@ -569,29 +653,49 @@ def main():
                                 status_text = st.empty()
                                 
                                 status_text.text("📊 종합 분석 중...")
-                                progress_bar.progress(20)
+                                progress_bar.progress(15)
                                 main_analysis = gpt_analyze_all(text)
                                 
+                                status_text.text("🔍 종합 분석 검증 중...")
+                                progress_bar.progress(25)
+                                main_verification = gpt_verify_analysis(text, main_analysis, "종합 분석")
+                                
                                 status_text.text("📊 구조 분석 중...")
-                                progress_bar.progress(40)
+                                progress_bar.progress(35)
                                 structure = gpt_analyze_structure(text)
                                 
+                                status_text.text("🔍 구조 분석 검증 중...")
+                                progress_bar.progress(45)
+                                structure_verification = gpt_verify_analysis(text, structure, "구조 분석")
+                                
                                 status_text.text("📊 주제&키워드 분석 중...")
-                                progress_bar.progress(60)
+                                progress_bar.progress(55)
                                 keywords_themes = gpt_analyze_keywords_themes(text)
                                 
+                                status_text.text("🔍 키워드 분석 검증 중...")
+                                progress_bar.progress(65)
+                                keywords_verification = gpt_verify_analysis(text, keywords_themes, "키워드 분석")
+                                
                                 status_text.text("📊 참고문헌 분석 중...")
-                                progress_bar.progress(80)
+                                progress_bar.progress(75)
                                 references = gpt_analyze_references(text)
+                                
+                                status_text.text("🔍 참고문헌 검증 중...")
+                                progress_bar.progress(85)
+                                references_verification = gpt_verify_analysis(text, references, "참고문헌 분석")
                                 
                                 name = paper_name.strip() if paper_name.strip() else uploaded_file.name.replace('.pdf', '')
                                 st.session_state.papers[name] = {
                                     'text': text,
                                     'metadata': metadata,
                                     'main_analysis': main_analysis,
+                                    'main_verification': main_verification,
                                     'structure': structure,
+                                    'structure_verification': structure_verification,
                                     'keywords_themes': keywords_themes,
-                                    'references': references
+                                    'keywords_verification': keywords_verification,
+                                    'references': references,
+                                    'references_verification': references_verification
                                 }
                                 
                                 progress_bar.progress(100)
@@ -782,6 +886,28 @@ def main():
             st.caption("🔹 논문의 핵심 내용을 체계적으로 분석합니다")
             
             analysis = data.get('main_analysis', {})
+            main_verification = data.get('main_verification', {})
+            
+            # 검증 결과 표시
+            if main_verification and not main_verification.get('verified', True):
+                st.error("⚠️ **할루시네이션 감지**")
+                st.markdown(f"""
+                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
+                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
+                    <p><b>검증 결과:</b> {main_verification.get('result', '할루시네이션 포함')}</p>
+                    {f"<p><b>문제가 있는 항목:</b><br>{main_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if main_verification.get('false_items') else ''}
+                    {f"<p><b>사유:</b><br>{main_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if main_verification.get('reason') else ''}
+                    {f"<p><b>권고사항:</b><br>{main_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if main_verification.get('recommendation') else ''}
+                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
+                    <p style="font-style: italic; color: #d32f2f;">
+                    <b>🙏 사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
+                    이는 대규모 언어모델의 'hallucination(환각)' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 진심으로 사과드립니다. 
+                    <b>아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.</b>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            elif main_verification and main_verification.get('verified', False):
+                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in analysis:
                 st.error(analysis['error'])
@@ -834,6 +960,28 @@ def main():
             st.caption("🔹 IMRaD 구조에 따라 논문을 체계적으로 분해합니다")
             
             structure = data.get('structure', {})
+            structure_verification = data.get('structure_verification', {})
+            
+            # 검증 결과 표시
+            if structure_verification and not structure_verification.get('verified', True):
+                st.error("⚠️ **할루시네이션 감지**")
+                st.markdown(f"""
+                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
+                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
+                    <p><b>검증 결과:</b> {structure_verification.get('result', '할루시네이션 포함')}</p>
+                    {f"<p><b>문제가 있는 항목:</b><br>{structure_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if structure_verification.get('false_items') else ''}
+                    {f"<p><b>사유:</b><br>{structure_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if structure_verification.get('reason') else ''}
+                    {f"<p><b>권고사항:</b><br>{structure_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if structure_verification.get('recommendation') else ''}
+                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
+                    <p style="font-style: italic; color: #d32f2f;">
+                    <b>🙏 사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
+                    이는 대규모 언어모델의 'hallucination(환각)' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 진심으로 사과드립니다. 
+                    <b>아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.</b>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            elif structure_verification and structure_verification.get('verified', False):
+                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in structure:
                 st.error(structure['error'])
@@ -861,6 +1009,32 @@ def main():
             st.caption("🔹 연구질문, 핵심개념, 키워드를 추출하고 관계를 시각화합니다")
             
             keywords_themes = data.get('keywords_themes', {})
+            keywords_verification = data.get('keywords_verification', {})
+            
+            # 검증 결과 표시
+            if keywords_verification and not keywords_verification.get('verified', True):
+                st.error("⚠️ **할루시네이션 감지**")
+                st.markdown(f"""
+                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
+                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
+                    <p><b>검증 결과:</b> {keywords_verification.get('result', '할루시네이션 포함')}</p>
+                    
+                    {f"<p><b>문제가 있는 항목:</b><br>{keywords_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if keywords_verification.get('false_items') else ''}
+                    
+                    {f"<p><b>사유:</b><br>{keywords_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if keywords_verification.get('reason') else ''}
+                    
+                    {f"<p><b>권고사항:</b><br>{keywords_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if keywords_verification.get('recommendation') else ''}
+                    
+                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
+                    <p style="font-style: italic; color: #d32f2f;">
+                    <b>🙏 사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
+                    이는 대규모 언어모델의 'hallucination(환각)' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 진심으로 사과드립니다. 
+                    <b>아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.</b>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            elif keywords_verification and keywords_verification.get('verified', False):
+                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in keywords_themes:
                 st.error(keywords_themes['error'])
@@ -1045,6 +1219,28 @@ def main():
             st.caption("🔹 핵심 문헌을 파악하고 인용 관계를 시각화합니다")
             
             refs = data.get('references', {})
+            references_verification = data.get('references_verification', {})
+            
+            # 검증 결과 표시
+            if references_verification and not references_verification.get('verified', True):
+                st.error("⚠️ **할루시네이션 감지**")
+                st.markdown(f"""
+                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
+                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
+                    <p><b>검증 결과:</b> {references_verification.get('result', '할루시네이션 포함')}</p>
+                    {f"<p><b>문제가 있는 항목:</b><br>{references_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if references_verification.get('false_items') else ''}
+                    {f"<p><b>사유:</b><br>{references_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if references_verification.get('reason') else ''}
+                    {f"<p><b>권고사항:</b><br>{references_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if references_verification.get('recommendation') else ''}
+                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
+                    <p style="font-style: italic; color: #d32f2f;">
+                    <b>🙏 사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
+                    이는 대규모 언어모델의 'hallucination(환각)' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 진심으로 사과드립니다. 
+                    <b>아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.</b>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            elif references_verification and references_verification.get('verified', False):
+                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in refs:
                 st.warning(refs.get('error', '참고문헌 분석을 수행할 수 없습니다.'))
