@@ -56,90 +56,6 @@ def get_openai_client():
 
 # ==================== GPT 기반 분석 함수 ====================
 
-def gpt_verify_analysis(original_text, analysis_result, analysis_type, max_words=2000):
-    """GPT 분석 결과를 원본 텍스트와 대조하여 검증합니다."""
-    try:
-        client = get_openai_client()
-        if not client:
-            return {"verified": True, "warning": ""}  # API 키 없으면 검증 생략
-        
-        words = original_text.split()
-        truncated_text = ' '.join(words[:max_words])
-        
-        # 분석 결과를 문자열로 변환
-        if isinstance(analysis_result, dict):
-            analysis_str = "\n".join([f"{k}: {v}" for k, v in analysis_result.items() if k != 'error'])
-        else:
-            analysis_str = str(analysis_result)
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "당신은 사실 검증 전문가입니다. AI가 생성한 분석 결과가 원본 텍스트에 근거했는지 엄격히 검증합니다. hallucination(환각)을 탐지하는 것이 당신의 임무입니다."},
-                {"role": "user", "content": f"""다음은 AI가 생성한 {analysis_type} 분석 결과입니다. 원본 논문 텍스트와 비교하여 거짓 정보가 있는지 검증해주세요.
-
-**원본 논문 텍스트:**
-{truncated_text}
-
-**AI 분석 결과:**
-{analysis_str}
-
-**검증 기준:**
-1. 분석 결과에 언급된 내용이 원본 텍스트에 실제로 존재하는가?
-2. 수치, 인용, 고유명사가 정확한가?
-3. 논문에 없는 내용을 AI가 지어낸(hallucination) 것은 없는가?
-
-다음 형식으로 답변해주세요:
-[검증결과]
-거짓 또는 사실
-
-[거짓항목]
-(거짓이 발견된 경우만) 거짓으로 판단된 구체적 항목들을 나열
-
-[사유]
-(거짓이 발견된 경우만) 왜 거짓인지 상세히 설명
-
-[권고사항]
-사용자에게 어떻게 해야 하는지 조언"""}
-            ],
-            temperature=0.1,
-            max_tokens=1000
-        )
-        
-        result = response.choices[0].message.content
-        
-        # 검증 결과 파싱
-        verification = {}
-        current_section = None
-        current_content = []
-        
-        for line in result.split('\n'):
-            if line.strip().startswith('[') and line.strip().endswith(']'):
-                if current_section:
-                    verification[current_section] = '\n'.join(current_content).strip()
-                current_section = line.strip()[1:-1]
-                current_content = []
-            else:
-                if current_section and line.strip():
-                    current_content.append(line)
-        
-        if current_section:
-            verification[current_section] = '\n'.join(current_content).strip()
-        
-        # 거짓 여부 판단
-        is_false = '거짓' in verification.get('검증결과', '사실').lower() or 'false' in verification.get('검증결과', '사실').lower()
-        
-        return {
-            "verified": not is_false,
-            "result": verification.get('검증결과', '사실'),
-            "false_items": verification.get('거짓항목', ''),
-            "reason": verification.get('사유', ''),
-            "recommendation": verification.get('권고사항', '')
-        }
-        
-    except Exception as e:
-        return {"verified": True, "warning": f"검증 중 오류: {str(e)}"}
-
 def gpt_analyze_all(text, max_words=3500):
     """GPT를 사용하여 논문을 종합적으로 분석합니다."""
     try:
@@ -147,27 +63,16 @@ def gpt_analyze_all(text, max_words=3500):
         if not client:
             return {"error": "OpenAI API 키가 설정되지 않았습니다."}
         
-        # 텍스트 길이 확인
-        if not text or len(text.strip()) < 100:
-            return {"error": "분석할 텍스트가 너무 짧거나 비어있습니다."}
-        
         words = text.split()
         truncated_text = ' '.join(words[:max_words])
-        
-        # 디버깅: 실제 전달되는 텍스트 확인
-        print(f"[DEBUG] gpt_analyze_all: 전체 텍스트 길이={len(text)}, 단어수={len(words)}, 잘린 텍스트 길이={len(truncated_text)}")
-        print(f"[DEBUG] 전달되는 텍스트 시작 부분: {truncated_text[:200]}")
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문 분석 전문가입니다. **절대 규칙: 제공된 텍스트에 실제로 있는 내용만 분석하세요. 텍스트에 없는 정보는 절대 만들어내지 마세요. 불확실하면 '텍스트에서 명시되지 않음'이라고 답하세요.**"},
-                {"role": "user", "content": f"""다음 학술 논문을 분석하세요. **절대 규칙: 아래 텍스트에 실제로 있는 내용만 사용하세요. 없는 내용은 만들지 마세요.**
+                {"role": "system", "content": "당신은 학술 논문 분석 전문가입니다. 질적 연구방법론에 특히 정통하며, 한국어로 명확하고 상세한 분석을 제공합니다. **중요: 논문에 명시된 사실과 당신의 추론/해석을 명확히 구분하여 표기하세요.**"},
+                {"role": "user", "content": f"""다음 학술 논문을 종합적으로 분석하여 한국어로 답변해주세요:
 
-논문 텍스트:
 {truncated_text}
-
-위 텍스트만을 바탕으로 분석하세요. 텍스트에 없으면 '명시되지 않음'이라고 쓰세요.
 
 다음 섹션별로 명확하게 구분하여 작성해주세요.
 **중요 규칙**: 각 내용 앞에 [사실] 또는 [추론] 태그를 붙여 출처를 명확히 하세요.
@@ -192,7 +97,7 @@ def gpt_analyze_all(text, max_words=3500):
 [한계점]
 연구의 한계점 및 향후 연구 방향"""}
             ],
-            temperature=0.1,
+            temperature=0.3,
             max_tokens=2500
         )
         
@@ -228,24 +133,17 @@ def gpt_analyze_structure(text, max_words=3000):
         if not client:
             return {"error": "OpenAI API 키가 설정되지 않았습니다."}
         
-        if not text or len(text.strip()) < 100:
-            return {"error": "분석할 텍스트가 너무 짧거나 비어있습니다."}
-        
         words = text.split()
         truncated_text = ' '.join(words[:max_words])
-        
-        print(f"[DEBUG] gpt_analyze_structure: 전달 텍스트 길이={len(truncated_text)}")
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문 구조 분석 전문가입니다. **절대 규칙: 제공된 텍스트에만 근거하세요. 텍스트에 없는 내용은 절대 만들지 마세요.**"},
-                {"role": "user", "content": f"""아래 논문의 구조를 분석하세요. **텍스트에 실제로 있는 내용만 사용하세요.**
+                {"role": "system", "content": "당신은 학술 논문의 구조를 분석하는 전문가입니다. IMRaD 구조(서론, 방법, 결과, 논의)를 잘 이해하고 있습니다. **중요: 논문에 명시된 사실과 추론을 구분하여 표기하세요.**"},
+                {"role": "user", "content": f"""다음 논문의 구조를 분석하여 각 섹션을 요약해주세요.
+**중요**: 각 내용 앞에 [사실] 또는 [추론] 태그를 붙이세요.
 
-논문 텍스트:
 {truncated_text}
-
-위 텍스트에 근거하여 분석하세요. 없으면 '명시되지 않음'이라고 쓰세요.
 
 다음 형식으로 작성해주세요:
 
@@ -267,7 +165,7 @@ def gpt_analyze_structure(text, max_words=3000):
 [논의_함의]
 논의 및 실천적 함의"""}
             ],
-            temperature=0.1,
+            temperature=0.3,
             max_tokens=2000
         )
         
@@ -303,24 +201,17 @@ def gpt_analyze_keywords_themes(text, max_words=3000):
         if not client:
             return {"error": "OpenAI API 키가 설정되지 않았습니다."}
         
-        if not text or len(text.strip()) < 100:
-            return {"error": "분석할 텍스트가 너무 짧거나 비어있습니다."}
-        
         words = text.split()
         truncated_text = ' '.join(words[:max_words])
-        
-        print(f"[DEBUG] gpt_analyze_keywords: 전달 텍스트 길이={len(truncated_text)}")
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 키워드 추출 전문가입니다. **절대 규칙: 제공된 텍스트에 있는 내용만 추출하세요. 없는 키워드는 만들지 마세요.**"},
-                {"role": "user", "content": f"""아래 논문에서 키워드를 추출하세요. **텍스트에 실제로 나오는 단어만 사용하세요.**
+                {"role": "system", "content": "당신은 학술 논문의 주제와 키워드를 추출하는 전문가입니다. **중요: 논문에 명시된 사실과 추론을 구분하여 표기하세요.**"},
+                {"role": "user", "content": f"""다음 논문에서 연구질문, 주요 주제, 키워드를 추출해주세요.
+**중요**: 각 항목 앞에 [사실] (논문에 명시됨) 또는 [추론] (AI 추출) 태그를 붙이세요.
 
-논문 텍스트:
 {truncated_text}
-
-위 텍스트에서만 추출하세요. 없으면 '명시되지 않음'이라고 쓰세요.
 
 다음 형식으로 작성해주세요:
 
@@ -351,12 +242,11 @@ def gpt_analyze_keywords_themes(text, max_words=3000):
 
 주의: 연구질문이나 가설이 명시되지 않은 경우, 논문의 목적을 기반으로 추론하여 작성해주세요."""}
             ],
-            temperature=0.1,
+            temperature=0.3,
             max_tokens=1500
         )
         
         result = response.choices[0].message.content
-        print(f"[DEBUG] 키워드 분석 GPT 응답 길이: {len(result)}자")
         
         # 섹션별로 파싱
         sections = {}
@@ -381,232 +271,85 @@ def gpt_analyze_keywords_themes(text, max_words=3000):
     except Exception as e:
         return {"error": f"주제 분석 실패: {str(e)}"}
 
-# ==================== Python 기반 참고문헌 파싱 ====================
-
-def extract_references_section(text):
-    """텍스트에서 참고문헌 섹션을 추출합니다."""
-    # 여러 패턴으로 참고문헌 섹션 찾기
-    patterns = [
-        r'(?:^|\n)(?:References|REFERENCES|Bibliography|BIBLIOGRAPHY|Works Cited|Literature Cited|참고문헌|參考文獻)\s*\n(.*?)(?=\n(?:Appendix|APPENDIX|부록|Table|Figure|$))',
-        r'(?:^|\n)(?:References|REFERENCES)\s*\n(.*)',
-        r'(?:^|\n)참고문헌\s*\n(.*)',
-    ]
-    
-    # 논문 끝 30% 부분에서 검색 (참고문헌은 일반적으로 끝에 위치)
-    text_len = len(text)
-    search_start = int(text_len * 0.6)
-    search_text = text[search_start:]
-    
-    for pattern in patterns:
-        match = re.search(pattern, search_text, re.IGNORECASE | re.DOTALL)
-        if match:
-            ref_text = match.group(1)
-            # 너무 짧으면 무시 (최소 200자)
-            if len(ref_text.strip()) > 200:
-                return ref_text
-    
-    return None
-
-def parse_single_reference(ref_line):
-    """단일 참고문헌을 파싱하여 저자, 연도, 제목 등을 추출합니다."""
-    ref_data = {
-        'raw': ref_line,
-        'authors': [],
-        'year': None,
-        'title': None,
-        'journal': None,
-        'type': 'unknown'
-    }
-    
-    # 연도 추출 (1900-2099)
-    year_match = re.search(r'\b(19\d{2}|20\d{2})\b', ref_line)
-    if year_match:
-        ref_data['year'] = int(year_match.group(1))
-    
-    # APA 스타일 저자 추출: "Author, A. B., & Author2, C. D."
-    # 첫 번째 마침표나 괄호 전까지가 저자
-    author_patterns = [
-        r'^([^.()]+(?:et al\.)?)[,.]?\s*\(',  # Author, A. (Year)
-        r'^([^.()]+)\s+\(\d{4}\)',  # Author (Year)
-        r'^\[?\d+\]\s*([^.()]+)[,.]',  # [1] Author,
-    ]
-    
-    for pattern in author_patterns:
-        author_match = re.search(pattern, ref_line)
-        if author_match:
-            authors_str = author_match.group(1).strip()
-            # 여러 저자 분리
-            authors = re.split(r'[,&]|\sand\s', authors_str)
-            ref_data['authors'] = [a.strip() for a in authors if a.strip() and len(a.strip()) > 2]
-            break
-    
-    # 제목 추출 (일반적으로 첫 번째 마침표와 두 번째 마침표 사이, 또는 괄호 뒤)
-    title_patterns = [
-        r'\((?:\d{4})\)\.\s*([^.]+)\.',  # (Year). Title.
-        r'\(\d{4}\)[,.]?\s*([^.]+?)[.]',  # (Year), Title.
-        r'"\s*([^"]+)\s*"',  # "Title"
-    ]
-    
-    for pattern in title_patterns:
-        title_match = re.search(pattern, ref_line)
-        if title_match:
-            ref_data['title'] = title_match.group(1).strip()
-            break
-    
-    # 저널/출판물 추출 (이탤릭체나 특정 패턴)
-    journal_patterns = [
-        r'\.\s+([A-Z][^,.]+(?:Journal|Review|Science|Studies|Research|Proceedings)[^,.]*)',
-        r'\.\s+In\s+([^.]+)\.',
-    ]
-    
-    for pattern in journal_patterns:
-        journal_match = re.search(pattern, ref_line, re.IGNORECASE)
-        if journal_match:
-            ref_data['journal'] = journal_match.group(1).strip()
-            break
-    
-    # 타입 판단
-    if 'dissertation' in ref_line.lower() or 'thesis' in ref_line.lower():
-        ref_data['type'] = 'dissertation'
-    elif 'conference' in ref_line.lower() or 'proceedings' in ref_line.lower():
-        ref_data['type'] = 'conference'
-    elif any(word in ref_line.lower() for word in ['book', 'press', 'publisher']):
-        ref_data['type'] = 'book'
-    elif ref_data['journal']:
-        ref_data['type'] = 'journal'
-    
-    return ref_data
-
-def parse_references(text):
-    """참고문헌 섹션을 파싱하여 구조화된 데이터로 반환합니다."""
-    ref_section = extract_references_section(text)
-    
-    if not ref_section:
-        return {
-            'found': False,
-            'references': [],
-            'total_count': 0,
-            'error': '참고문헌 섹션을 찾을 수 없습니다.'
-        }
-    
-    # 개별 참고문헌 분리
-    # 패턴: 줄바꿈으로 시작하고 대문자나 [숫자]로 시작하는 라인
-    lines = ref_section.split('\n')
-    references = []
-    current_ref = ""
-    
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        
-        # 새 참고문헌의 시작 판단:
-        # 1. [숫자]로 시작
-        # 2. 대문자로 시작하고 이전 ref가 마침표로 끝남
-        # 3. 명확한 저자 패턴 (Author, A.)
-        is_new_ref = (
-            re.match(r'^\[?\d+\]', line) or  # [1] 또는 1.
-            (re.match(r'^[A-Z]', line) and current_ref.endswith('.')) or
-            re.match(r'^[A-Z][a-z]+,\s+[A-Z]\.', line)  # Author, A.
-        )
-        
-        if is_new_ref and current_ref:
-            # 이전 참고문헌 저장
-            parsed = parse_single_reference(current_ref)
-            if parsed['authors'] or parsed['year']:  # 최소한 저자나 연도가 있어야 함
-                references.append(parsed)
-            current_ref = line
-        else:
-            current_ref += " " + line if current_ref else line
-    
-    # 마지막 참고문헌 저장
-    if current_ref:
-        parsed = parse_single_reference(current_ref)
-        if parsed['authors'] or parsed['year']:
-            references.append(parsed)
-    
-    # 통계 계산
-    years = [ref['year'] for ref in references if ref['year']]
-    types = [ref['type'] for ref in references]
-    
-    return {
-        'found': True,
-        'references': references,
-        'total_count': len(references),
-        'years': years,
-        'year_min': min(years) if years else None,
-        'year_max': max(years) if years else None,
-        'types': {
-            'journal': types.count('journal'),
-            'book': types.count('book'),
-            'conference': types.count('conference'),
-            'dissertation': types.count('dissertation'),
-            'unknown': types.count('unknown')
-        },
-        'raw_section': ref_section[:5000]  # GPT 분석용으로 일부 저장
-    }
-
 def gpt_analyze_references(text):
-    """Python으로 파싱한 참고문헌을 GPT로 분석합니다."""
+    """GPT를 사용하여 참고문헌을 분석합니다."""
     try:
-        # 1단계: Python으로 참고문헌 파싱
-        parsed_refs = parse_references(text)
-        
-        if not parsed_refs['found']:
-            return {"error": parsed_refs['error']}
-        
         client = get_openai_client()
         if not client:
-            # GPT 없어도 기본 통계는 제공
-            return {
-                '통계요약': f"""총 {parsed_refs['total_count']}개의 참고문헌
-연도 범위: {parsed_refs['year_min']}-{parsed_refs['year_max']}
-저널논문: {parsed_refs['types']['journal']}개
-단행본: {parsed_refs['types']['book']}개
-학술대회: {parsed_refs['types']['conference']}개
-학위논문: {parsed_refs['types']['dissertation']}개""",
-                'parsed_data': parsed_refs
-            }
+            return {"error": "OpenAI API 키가 설정되지 않았습니다."}
         
-        # 2단계: GPT로 핵심문헌 선정 및 인사이트 생성
-        # 파싱된 데이터를 요약하여 전달
-        refs_summary = []
-        for i, ref in enumerate(parsed_refs['references'][:50], 1):  # 최대 50개만
-            authors = ', '.join(ref['authors'][:3]) if ref['authors'] else 'Unknown'
-            if len(ref['authors']) > 3:
-                authors += ' et al.'
-            year = ref['year'] or 'N/A'
-            title = ref['title'][:100] if ref['title'] else 'No title'
-            refs_summary.append(f"{i}. {authors} ({year}). {title}")
+        # References 섹션 찾기 - 더 넓은 범위로 검색
+        ref_section = ""
+        patterns = [
+            r'References\s*\n(.*?)(?=\n\n[A-Z][a-z]+|\Z)',
+            r'REFERENCES\s*\n(.*?)(?=\n\n[A-Z][a-z]+|\Z)',
+            r'Bibliography\s*\n(.*?)(?=\n\n[A-Z][a-z]+|\Z)',
+            r'참고문헌\s*\n(.*?)(?=\n\n|\Z)',
+            r'References\s+(.*)',
+            r'REFERENCES\s+(.*)',
+        ]
         
-        refs_text = '\n'.join(refs_summary)
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                ref_section = match.group(1)[:8000]  # 더 많은 텍스트 포함
+                break
+        
+        # 참고문헌이 없으면 텍스트 끝부분 사용
+        if not ref_section or len(ref_section) < 200:
+            # 텍스트의 마지막 20% 사용
+            last_part = text[int(len(text) * 0.8):]
+            if len(last_part) > 500:
+                ref_section = last_part[:8000]
+        
+        if not ref_section or len(ref_section) < 200:
+            return {"error": "참고문헌 섹션을 찾을 수 없습니다. 논문에 참고문헌이 포함되어 있는지 확인해주세요."}
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 참고문헌 분석 전문가입니다. 이미 파싱된 정확한 참고문헌 데이터를 바탕으로 핵심문헌을 선정하고 연구 트렌드를 분석합니다. **절대 새로운 참고문헌을 만들어내지 마세요.**"},
-                {"role": "user", "content": f"""다음은 논문에서 Python으로 추출한 {parsed_refs['total_count']}개의 참고문헌입니다.
-이 목록에서 가장 중요한 5-10개의 핵심문헌을 선정하고 연구 트렌드를 분석해주세요.
+                {"role": "system", "content": "당신은 학술 논문의 참고문헌을 분석하는 전문가입니다. 서지정보를 정확히 추출하고 대학원생에게 유용한 인사이트를 제공합니다. **중요: 사실과 추론을 구분하여 표기하세요.**"},
+                {"role": "user", "content": f"""다음 참고문헌 목록을 분석하여 대학원생이 문헌 조사에 활용할 수 있도록 상세히 정리해주세요.
+**중요**: [통계요약]과 [핵심문헌]은 [사실], [시사점]은 [추론]으로 명확히 구분하세요.
 
-**중요: 아래 목록에 있는 참고문헌만 사용하세요. 새로 만들지 마세요.**
-
-참고문헌 목록:
-{refs_text}
+{ref_section}
 
 다음 형식으로 작성해주세요:
 
-[핵심문헌]
-• 위 목록의 번호와 함께 핵심문헌 5-10개 선정
-→ 왜 중요한지 간단히 설명
+[통계요약]
+• 총 참고문헌: XX개
+• 연도 범위: XXXX-XXXX년
+• 최근 5년 이내: XX개 (XX%)
+• 평균 저자수: X.X명
 
-[연구트렌드]
-연도별 분포와 주제 흐름 분석
+[핵심문헌]
+각 문헌을 다음 형식으로 나열 (최대 8개):
+• 저자(연도). 제목. 저널/출판사.
+  → [사실] 이 논문에서 X회 인용됨 (또는 참고문헌 목록에 포함된 사실)
+  → [추론] 이 분야의 이론적 기초를 제공/연구방법론을 제시/핵심 실증연구 등의 추천 사유
+
+[주요저널]
+• Journal Name 1 (XX회 인용)
+• Journal Name 2 (XX회 인용)
+• Journal Name 3 (XX회 인용)
+
+[영향력있는연구자]
+• 연구자1 (XX회 인용) - 주요 연구 주제
+• 연구자2 (XX회 인용) - 주요 연구 주제
+• 연구자3 (XX회 인용) - 주요 연구 주제
+
+[출판물유형]
+• 저널논문: XX개
+• 단행본/저서: XX개
+• 학술대회: XX개
+• 학위논문: XX개
+• 기타: XX개
 
 [시사점]
-이 참고문헌이 보여주는 연구의 특징"""}
+이 참고문헌 목록이 보여주는 연구 흐름, 주요 이론적 기반, 또는 연구방법론적 특징을 2-3문장으로 요약"""}
             ],
             temperature=0.2,
-            max_tokens=1500
+            max_tokens=2000
         )
         
         result = response.choices[0].message.content
@@ -629,21 +372,13 @@ def gpt_analyze_references(text):
         if current_section:
             sections[current_section] = '\n'.join(current_content).strip()
         
-        # 통계요약 추가
-        sections['통계요약'] = f"""총 {parsed_refs['total_count']}개의 참고문헌 (Python 파싱)
-• 연도 범위: {parsed_refs['year_min']}-{parsed_refs['year_max']}
-• 저널논문: {parsed_refs['types']['journal']}개
-• 단행본/저서: {parsed_refs['types']['book']}개  
-• 학술대회: {parsed_refs['types']['conference']}개
-• 학위논문: {parsed_refs['types']['dissertation']}개
-• 기타: {parsed_refs['types']['unknown']}개"""
-        
-        sections['parsed_data'] = parsed_refs  # 원본 파싱 데이터 저장
-        
         return sections if sections else {"error": "참고문헌 분석 실패"}
         
     except Exception as e:
         return {"error": f"참고문헌 분석 실패: {str(e)}"}
+
+# 고급분석 및 비교분석 기능 제거됨 (안정성 향상을 위해)
+# 핵심 분석 기능에만 집중: 종합분석, 구조분석, 주제&키워드 분석, 참고문헌 분석
 
 # ==================== 텍스트 전처리 ====================
 def clean_text(text):
@@ -768,6 +503,13 @@ def main():
     # 세션 상태 초기화
     if 'papers' not in st.session_state:
         st.session_state.papers = {}
+    if 'visit_count' not in st.session_state:
+        st.session_state.visit_count = 0
+    if 'analysis_count' not in st.session_state:
+        st.session_state.analysis_count = 0
+    
+    # 방문횟수 증가 (페이지 로드 시)
+    st.session_state.visit_count += 1
     
     # 사이드바
     with st.sidebar:
@@ -823,106 +565,40 @@ def main():
                             if extract_error:
                                 st.error(extract_error)
                             else:
-                                # 디버깅: 추출된 텍스트 정보 표시
-                                text_length = len(text)
-                                word_count = len(text.split())
-                                
-                                st.success(f"""
-                                ✅ **텍스트 추출 완료**
-                                - 총 문자 수: {text_length:,}자
-                                - 총 단어 수: {word_count:,}개
-                                - 페이지 수: {metadata['pages']}페이지
-                                """)
-                                
-                                # 텍스트 전체 미리보기
-                                with st.expander("🔍 **필독: 추출된 텍스트 전체 확인** (분석 전 반드시 확인하세요!)", expanded=True):
-                                    st.warning("⚠️ **중요**: 아래 텍스트가 업로드한 논문의 내용과 일치하는지 확인하세요!")
-                                    
-                                    # 처음 2000자
-                                    st.markdown("### 📄 텍스트 시작 부분 (처음 2000자)")
-                                    st.text_area("시작 부분", text[:2000], height=300, disabled=True)
-                                    
-                                    # 중간 2000자
-                                    mid_point = len(text) // 2
-                                    st.markdown("### 📄 텍스트 중간 부분")
-                                    st.text_area("중간 부분", text[mid_point:mid_point+2000], height=300, disabled=True)
-                                    
-                                    # 끝 2000자
-                                    st.markdown("### 📄 텍스트 끝 부분 (마지막 2000자)")
-                                    st.text_area("끝 부분", text[-2000:], height=300, disabled=True)
-                                    
-                                    # 전체 텍스트 다운로드
-                                    st.download_button(
-                                        label="💾 전체 텍스트 다운로드 (확인용)",
-                                        data=text,
-                                        file_name=f"{uploaded_file.name.replace('.pdf', '')}_extracted_text.txt",
-                                        mime="text/plain"
-                                    )
-                                
-                                if text_length < 500:
-                                    st.error("⚠️ 추출된 텍스트가 너무 짧습니다. 이미지 기반 PDF이거나 텍스트 추출에 문제가 있을 수 있습니다.")
-                                    st.stop()
-                                
-                                # 사용자 확인 요청
-                                st.warning("⚠️ **위 텍스트가 논문 내용과 일치하는지 확인한 후 아래 버튼을 클릭하세요.**")
-                                
-                                confirm_and_analyze = st.button("✅ 텍스트 확인 완료 - 분석 시작", type="primary", use_container_width=True)
-                                
-                                if not confirm_and_analyze:
-                                    st.info("👆 추출된 텍스트를 확인한 후 '분석 시작' 버튼을 클릭하세요.")
-                                    st.stop()
-                                
                                 progress_bar = st.progress(0)
                                 status_text = st.empty()
                                 
                                 status_text.text("📊 종합 분석 중...")
-                                progress_bar.progress(15)
+                                progress_bar.progress(20)
                                 main_analysis = gpt_analyze_all(text)
                                 
-                                status_text.text("🔍 종합 분석 검증 중...")
-                                progress_bar.progress(20)
-                                main_verification = gpt_verify_analysis(text, main_analysis, "종합 분석")
-                                
                                 status_text.text("📊 구조 분석 중...")
-                                progress_bar.progress(35)
+                                progress_bar.progress(40)
                                 structure = gpt_analyze_structure(text)
                                 
-                                status_text.text("🔍 구조 분석 검증 중...")
-                                progress_bar.progress(40)
-                                structure_verification = gpt_verify_analysis(text, structure, "구조 분석")
-                                
                                 status_text.text("📊 주제&키워드 분석 중...")
-                                progress_bar.progress(55)
+                                progress_bar.progress(60)
                                 keywords_themes = gpt_analyze_keywords_themes(text)
                                 
-                                status_text.text("🔍 주제&키워드 검증 중...")
-                                progress_bar.progress(60)
-                                keywords_verification = gpt_verify_analysis(text, keywords_themes, "주제&키워드 분석")
-                                
                                 status_text.text("📊 참고문헌 분석 중...")
-                                progress_bar.progress(75)
-                                references = gpt_analyze_references(text)
-                                
-                                status_text.text("🔍 참고문헌 검증 중...")
                                 progress_bar.progress(80)
-                                references_verification = gpt_verify_analysis(text, references, "참고문헌 분석")
+                                references = gpt_analyze_references(text)
                                 
                                 name = paper_name.strip() if paper_name.strip() else uploaded_file.name.replace('.pdf', '')
                                 st.session_state.papers[name] = {
                                     'text': text,
                                     'metadata': metadata,
                                     'main_analysis': main_analysis,
-                                    'main_verification': main_verification,
                                     'structure': structure,
-                                    'structure_verification': structure_verification,
                                     'keywords_themes': keywords_themes,
-                                    'keywords_verification': keywords_verification,
-                                    'references': references,
-                                    'references_verification': references_verification
+                                    'references': references
                                 }
                                 
                                 progress_bar.progress(100)
                                 status_text.text("✅ 분석 완료!")
+                                
+                                # 분석횟수 증가
+                                st.session_state.analysis_count += 1
                                 
                                 st.success(f"**'{name}'** 분석이 완료되었습니다!")
                                 st.balloons()
@@ -946,6 +622,16 @@ def main():
             
             if len(st.session_state.papers) > 1:
                 st.info(f"💡 {len(st.session_state.papers)}개 논문 비교 가능")
+        
+        # 통계 표시
+        st.markdown("---")
+        st.markdown("### 📊 사용 통계")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("👁️ 방문횟수", f"{st.session_state.visit_count}회")
+        with col2:
+            st.metric("📝 분석횟수", f"{st.session_state.analysis_count}회")
+        st.caption("ℹ️ 현재 세션 기준")
     
     # 메인 영역
     if not st.session_state.papers:
@@ -1083,7 +769,6 @@ def main():
                 if meta['creator']:
                     cols[3].metric("작성 도구", meta['creator'][:30] if meta['creator'] else 'N/A')
         
-        # 탭 생성
         tabs = st.tabs([
             "🤖 종합 분석",
             "📊 구조 분석",
@@ -1097,28 +782,6 @@ def main():
             st.caption("🔹 논문의 핵심 내용을 체계적으로 분석합니다")
             
             analysis = data.get('main_analysis', {})
-            main_verification = data.get('main_verification', {})
-            
-            # 검증 결과 표시
-            if main_verification and not main_verification.get('verified', True):
-                st.error("⚠️ **거짓 정보 발견**")
-                st.markdown(f"""
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
-                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
-                    <p><b>검증 결과:</b> {main_verification.get('result', '거짓 정보 포함')}</p>
-                    {f"<p><b>거짓으로 판단된 항목:</b><br>{main_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if main_verification.get('false_items') else ''}
-                    {f"<p><b>사유:</b><br>{main_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if main_verification.get('reason') else ''}
-                    {f"<p><b>권고사항:</b><br>{main_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if main_verification.get('recommendation') else ''}
-                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
-                    <p style="font-style: italic; color: #d32f2f;">
-                    <b>사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
-                    이는 대규모 언어모델의 'hallucination' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 죄송합니다. 
-                    아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            elif main_verification and main_verification.get('verified', False):
-                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in analysis:
                 st.error(analysis['error'])
@@ -1171,28 +834,6 @@ def main():
             st.caption("🔹 IMRaD 구조에 따라 논문을 체계적으로 분해합니다")
             
             structure = data.get('structure', {})
-            structure_verification = data.get('structure_verification', {})
-            
-            # 검증 결과 표시
-            if structure_verification and not structure_verification.get('verified', True):
-                st.error("⚠️ **거짓 정보 발견**")
-                st.markdown(f"""
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
-                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
-                    <p><b>검증 결과:</b> {structure_verification.get('result', '거짓 정보 포함')}</p>
-                    {f"<p><b>거짓으로 판단된 항목:</b><br>{structure_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if structure_verification.get('false_items') else ''}
-                    {f"<p><b>사유:</b><br>{structure_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if structure_verification.get('reason') else ''}
-                    {f"<p><b>권고사항:</b><br>{structure_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if structure_verification.get('recommendation') else ''}
-                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
-                    <p style="font-style: italic; color: #d32f2f;">
-                    <b>사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
-                    이는 대규모 언어모델의 'hallucination' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 죄송합니다. 
-                    아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            elif structure_verification and structure_verification.get('verified', False):
-                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in structure:
                 st.error(structure['error'])
@@ -1220,32 +861,6 @@ def main():
             st.caption("🔹 연구질문, 핵심개념, 키워드를 추출하고 관계를 시각화합니다")
             
             keywords_themes = data.get('keywords_themes', {})
-            keywords_verification = data.get('keywords_verification', {})
-            
-            # 검증 결과 표시
-            if keywords_verification and not keywords_verification.get('verified', True):
-                st.error("⚠️ **거짓 정보 발견**")
-                st.markdown(f"""
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
-                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
-                    <p><b>검증 결과:</b> {keywords_verification.get('result', '거짓 정보 포함')}</p>
-                    
-                    {f"<p><b>거짓으로 판단된 항목:</b><br>{keywords_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if keywords_verification.get('false_items') else ''}
-                    
-                    {f"<p><b>사유:</b><br>{keywords_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if keywords_verification.get('reason') else ''}
-                    
-                    {f"<p><b>권고사항:</b><br>{keywords_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if keywords_verification.get('recommendation') else ''}
-                    
-                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
-                    <p style="font-style: italic; color: #d32f2f;">
-                    <b>사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
-                    이는 대규모 언어모델의 'hallucination' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 죄송합니다. 
-                    아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            elif keywords_verification and keywords_verification.get('verified', False):
-                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in keywords_themes:
                 st.error(keywords_themes['error'])
@@ -1430,28 +1045,6 @@ def main():
             st.caption("🔹 핵심 문헌을 파악하고 인용 관계를 시각화합니다")
             
             refs = data.get('references', {})
-            references_verification = data.get('references_verification', {})
-            
-            # 검증 결과 표시
-            if references_verification and not references_verification.get('verified', True):
-                st.error("⚠️ **거짓 정보 발견**")
-                st.markdown(f"""
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 10px; border-left: 5px solid #f44336; margin-bottom: 20px;">
-                    <h4 style="color: #c62828; margin-top: 0;">🚨 사실 검증 실패</h4>
-                    <p><b>검증 결과:</b> {references_verification.get('result', '거짓 정보 포함')}</p>
-                    {f"<p><b>거짓으로 판단된 항목:</b><br>{references_verification.get('false_items', 'N/A').replace(chr(10), '<br>')}</p>" if references_verification.get('false_items') else ''}
-                    {f"<p><b>사유:</b><br>{references_verification.get('reason', 'N/A').replace(chr(10), '<br>')}</p>" if references_verification.get('reason') else ''}
-                    {f"<p><b>권고사항:</b><br>{references_verification.get('recommendation', 'N/A').replace(chr(10), '<br>')}</p>" if references_verification.get('recommendation') else ''}
-                    <hr style="border: none; border-top: 1px solid #ef9a9a; margin: 15px 0;">
-                    <p style="font-style: italic; color: #d32f2f;">
-                    <b>사과의 말씀:</b> AI가 원본 논문에 없는 내용을 생성했을 가능성이 있습니다. 
-                    이는 대규모 언어모델의 'hallucination' 현상으로, 의도적인 것은 아니지만 부정확한 정보를 제공하여 죄송합니다. 
-                    아래 분석 결과는 참고용으로만 활용하시고, 반드시 원본 논문을 직접 확인해주시기 바랍니다.
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            elif references_verification and references_verification.get('verified', False):
-                st.success("✅ 사실 검증 완료: 분석 결과가 원본 텍스트에 근거하고 있습니다.")
             
             if 'error' in refs:
                 st.warning(refs.get('error', '참고문헌 분석을 수행할 수 없습니다.'))
@@ -1710,4 +1303,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
