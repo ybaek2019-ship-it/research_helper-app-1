@@ -161,12 +161,13 @@ def gpt_analyze_all(text, max_words=3500):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문 분석 전문가입니다. 질적 연구방법론에 특히 정통하며, 한국어로 명확하고 상세한 분석을 제공합니다. **중요: 논문에 명시된 사실과 당신의 추론/해석을 명확히 구분하여 표기하세요. 제공된 텍스트에 기반하여 분석하고, 절대 텍스트에 없는 내용을 지어내지 마세요.**"},
-                {"role": "user", "content": f"""다음 학술 논문을 종합적으로 분석하여 한국어로 답변해주세요.
+                {"role": "system", "content": "당신은 학술 논문 분석 전문가입니다. **절대 규칙: 제공된 텍스트에 실제로 있는 내용만 분석하세요. 텍스트에 없는 정보는 절대 만들어내지 마세요. 불확실하면 '텍스트에서 명시되지 않음'이라고 답하세요.**"},
+                {"role": "user", "content": f"""다음 학술 논문을 분석하세요. **절대 규칙: 아래 텍스트에 실제로 있는 내용만 사용하세요. 없는 내용은 만들지 마세요.**
 
-**중요**: 아래 제공된 논문 텍스트의 내용만을 바탕으로 분석하세요. 텍스트에 명시되지 않은 내용은 추측하지 마세요.
-
+논문 텍스트:
 {truncated_text}
+
+위 텍스트만을 바탕으로 분석하세요. 텍스트에 없으면 '명시되지 않음'이라고 쓰세요.
 
 다음 섹션별로 명확하게 구분하여 작성해주세요.
 **중요 규칙**: 각 내용 앞에 [사실] 또는 [추론] 태그를 붙여 출처를 명확히 하세요.
@@ -191,7 +192,7 @@ def gpt_analyze_all(text, max_words=3500):
 [한계점]
 연구의 한계점 및 향후 연구 방향"""}
             ],
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=2500
         )
         
@@ -238,11 +239,13 @@ def gpt_analyze_structure(text, max_words=3000):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문의 구조를 분석하는 전문가입니다. IMRaD 구조(서론, 방법, 결과, 논의)를 잘 이해하고 있습니다. **중요: 제공된 논문 텍스트의 내용만을 바탕으로 분석하고, 텍스트에 없는 내용은 만들어내지 마세요.**"},
-                {"role": "user", "content": f"""다음 논문의 구조를 분석하여 각 섹션을 요약해주세요.
-**중요**: 아래 제공된 텍스트의 내용만 사용하세요. 각 내용 앞에 [사실] 또는 [추론] 태그를 붙이세요.
+                {"role": "system", "content": "당신은 학술 논문 구조 분석 전문가입니다. **절대 규칙: 제공된 텍스트에만 근거하세요. 텍스트에 없는 내용은 절대 만들지 마세요.**"},
+                {"role": "user", "content": f"""아래 논문의 구조를 분석하세요. **텍스트에 실제로 있는 내용만 사용하세요.**
 
+논문 텍스트:
 {truncated_text}
+
+위 텍스트에 근거하여 분석하세요. 없으면 '명시되지 않음'이라고 쓰세요.
 
 다음 형식으로 작성해주세요:
 
@@ -264,7 +267,7 @@ def gpt_analyze_structure(text, max_words=3000):
 [논의_함의]
 논의 및 실천적 함의"""}
             ],
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=2000
         )
         
@@ -311,11 +314,13 @@ def gpt_analyze_keywords_themes(text, max_words=3000):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 학술 논문의 주제와 키워드를 추출하는 전문가입니다. **중요: 제공된 논문 텍스트에서만 정보를 추출하고, 없는 내용은 만들어내지 마세요.**"},
-                {"role": "user", "content": f"""다음 논문에서 연구질문, 주요 주제, 키워드를 추출해주세요.
-**중요**: 아래 텍스트에 실제로 있는 내용만 추출하세요. 각 항목 앞에 [사실] (논문에 명시됨) 또는 [추론] (AI 추출) 태그를 붙이세요.
+                {"role": "system", "content": "당신은 키워드 추출 전문가입니다. **절대 규칙: 제공된 텍스트에 있는 내용만 추출하세요. 없는 키워드는 만들지 마세요.**"},
+                {"role": "user", "content": f"""아래 논문에서 키워드를 추출하세요. **텍스트에 실제로 나오는 단어만 사용하세요.**
 
+논문 텍스트:
 {truncated_text}
+
+위 텍스트에서만 추출하세요. 없으면 '명시되지 않음'이라고 쓰세요.
 
 다음 형식으로 작성해주세요:
 
@@ -346,11 +351,12 @@ def gpt_analyze_keywords_themes(text, max_words=3000):
 
 주의: 연구질문이나 가설이 명시되지 않은 경우, 논문의 목적을 기반으로 추론하여 작성해주세요."""}
             ],
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=1500
         )
         
         result = response.choices[0].message.content
+        print(f"[DEBUG] 키워드 분석 GPT 응답 길이: {len(result)}자")
         
         # 섹션별로 파싱
         sections = {}
@@ -820,21 +826,50 @@ def main():
                                 # 디버깅: 추출된 텍스트 정보 표시
                                 text_length = len(text)
                                 word_count = len(text.split())
-                                st.info(f"""
-                                📊 **텍스트 추출 완료**
+                                
+                                st.success(f"""
+                                ✅ **텍스트 추출 완료**
                                 - 총 문자 수: {text_length:,}자
                                 - 총 단어 수: {word_count:,}개
                                 - 페이지 수: {metadata['pages']}페이지
-                                
-                                ✅ 텍스트가 정상적으로 추출되었습니다.
                                 """)
                                 
-                                # 텍스트 미리보기 (선택적)
-                                with st.expander("📄 추출된 텍스트 미리보기 (처음 500자)"):
-                                    st.text(text[:500])
+                                # 텍스트 전체 미리보기
+                                with st.expander("🔍 **필독: 추출된 텍스트 전체 확인** (분석 전 반드시 확인하세요!)", expanded=True):
+                                    st.warning("⚠️ **중요**: 아래 텍스트가 업로드한 논문의 내용과 일치하는지 확인하세요!")
+                                    
+                                    # 처음 2000자
+                                    st.markdown("### 📄 텍스트 시작 부분 (처음 2000자)")
+                                    st.text_area("시작 부분", text[:2000], height=300, disabled=True)
+                                    
+                                    # 중간 2000자
+                                    mid_point = len(text) // 2
+                                    st.markdown("### 📄 텍스트 중간 부분")
+                                    st.text_area("중간 부분", text[mid_point:mid_point+2000], height=300, disabled=True)
+                                    
+                                    # 끝 2000자
+                                    st.markdown("### 📄 텍스트 끝 부분 (마지막 2000자)")
+                                    st.text_area("끝 부분", text[-2000:], height=300, disabled=True)
+                                    
+                                    # 전체 텍스트 다운로드
+                                    st.download_button(
+                                        label="💾 전체 텍스트 다운로드 (확인용)",
+                                        data=text,
+                                        file_name=f"{uploaded_file.name.replace('.pdf', '')}_extracted_text.txt",
+                                        mime="text/plain"
+                                    )
                                 
                                 if text_length < 500:
                                     st.error("⚠️ 추출된 텍스트가 너무 짧습니다. 이미지 기반 PDF이거나 텍스트 추출에 문제가 있을 수 있습니다.")
+                                    st.stop()
+                                
+                                # 사용자 확인 요청
+                                st.warning("⚠️ **위 텍스트가 논문 내용과 일치하는지 확인한 후 아래 버튼을 클릭하세요.**")
+                                
+                                confirm_and_analyze = st.button("✅ 텍스트 확인 완료 - 분석 시작", type="primary", use_container_width=True)
+                                
+                                if not confirm_and_analyze:
+                                    st.info("👆 추출된 텍스트를 확인한 후 '분석 시작' 버튼을 클릭하세요.")
                                     st.stop()
                                 
                                 progress_bar = st.progress(0)
