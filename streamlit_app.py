@@ -406,80 +406,59 @@ def gpt_analyze_references(text):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": """You are NOT a researcher, academic writer, or literature reviewer.
+                {"role": "system", "content": """You are a bibliographic parser and analyzer for academic papers.
 
-You are a bibliographic parser and verifier.
-Your role is strictly limited to mechanical text processing.
+CRITICAL RULES:
+1. Count references by author–year–title unit ONLY
+2. EXCLUDE from counting: DOI, UCI, URLs, page numbers, headers, footers, line breaks
+3. If a reference spans multiple lines, count as ONE item
+4. Do NOT infer, guess, or complete missing information
+5. Extract only what is explicitly written
+6. Preserve original language (Korean/English/etc.)
+7. If information is missing or ambiguous, state "Cannot be determined"
 
-ALLOWED actions:
-- count
-- separate
-- extract
-- match
-- validate
+Your analysis must be factual and mechanical - no interpretation or external knowledge."""},
+                {"role": "user", "content": f"""Analyze the following reference list strictly based on what is written.
 
-FORBIDDEN actions (critical):
-- infer or guess missing information
-- complete or correct references
-- normalize citation style
-- translate text
-- merge items by similarity
-- rely on external knowledge or training data
-- assume APA, MLA, Chicago, or any citation style
-- hallucinate under any circumstance
-
-If information is missing, broken, ambiguous, or unclear,
-you MUST explicitly output:
-"Cannot be determined from the given text.\""""},
-                {"role": "user", "content": f"""You must work ONLY with the text provided below.
-Treat it as raw, unverified input.
-Do NOT assume it is a correct reference list.
-
---------------------------------------------------
-TASK 1: Reference counting
-
-Rules:
-- One reference = one unique author–year–title unit
-- Line breaks, page headers, footers, section titles, page numbers,
-  DOI, UCI, URLs are NOT references
-- If a reference spans multiple lines, treat it as one item
-- If separation is ambiguous, do NOT guess; flag it
-
-Output format:
-[Reference Count]
-Total references: <number>
-Ambiguous items: <None or list>
-
---------------------------------------------------
-TASK 2: Bibliographic field extraction
-
-For EACH reference, extract ONLY what is explicitly written.
-
-Fields:
-- Authors
-- Year
-- Title
-- Source (journal or publisher)
-- Volume
-- Issue
-- Pages
-- DOI or URL
-
-Rules:
-- Do NOT infer missing fields
-- Do NOT fix spelling, punctuation, or formatting
-- Preserve original language and text exactly
-- If a field is not explicitly present, use null
-
-Output format:
-[Extracted References]
-JSON array only.
-No explanations, no commentary, no extra text.
-
---------------------------------------------------
-BEGIN INPUT TEXT
 {ref_section}
-END INPUT TEXT"""}
+
+Provide your analysis in the following format:
+
+[통계요약]
+• 총 참고문헌: XX개 (author-year-title units only, excluding DOI/UCI/URLs)
+• 연도 범위: XXXX-XXXX년 (if determinable)
+• 최근 5년 이내: XX개 (XX%) (if year is present)
+• 모호한 항목: XX개 (if any)
+
+[핵심문헌]
+List up to 8 references in this exact format:
+• Author(Year). Title. Source.
+  [Facts only - no interpretation]
+
+[주요저널]
+• Journal Name 1 (XX회 출현)
+• Journal Name 2 (XX회 출현)
+(List only if journal names are explicitly identifiable)
+
+[영향력있는저자]
+• Author 1 (XX회 출현)
+• Author 2 (XX회 출현)
+(List only if author names are clearly extractable)
+
+[출판물유형]
+• 저널논문: XX개
+• 단행본: XX개
+• 기타: XX개
+(Count only based on explicit indicators)
+
+[검증노트]
+List any:
+- Ambiguous separations
+- Missing critical fields
+- Unparseable entries
+- Items that cannot be classified
+
+If any section cannot be determined, write "Cannot be determined from the given text.\""""}
             ],
             temperature=0.1,
             max_tokens=3000
