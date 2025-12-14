@@ -412,10 +412,9 @@ CRITICAL RULES:
 1. Count references by author–year–title unit ONLY
 2. EXCLUDE from counting: DOI, UCI, URLs, page numbers, headers, footers, line breaks
 3. If a reference spans multiple lines, count as ONE item
-4. For statistics and extraction: Do NOT infer or guess - state only facts
-5. For recommendation reasons: You MAY provide informed analysis marked as [추론]
-6. Preserve original language (Korean/English/etc.)
-7. Clearly separate [사실] (facts) from [추론] (inference)"""},
+4. For statistics: State only facts from the text
+5. For key references: MUST select and analyze - use reasonable academic judgment
+6. Clearly separate [사실] (facts) from [추론] (analysis)"""},
                 {"role": "user", "content": f"""Analyze the following reference list.
 
 {ref_section}
@@ -431,22 +430,31 @@ Provide your analysis in the following format:
 [핵심문헌]
 **연구에 가장 중요한 참고문헌들입니다. 각 문헌의 추천 사유를 확인하세요.**
 
-List up to 8 most significant references:
+IMPORTANT: You MUST select 5-8 key references based on:
+- Recent publications (within last 5-10 years)
+- Frequently appearing authors
+- Well-known journals or publishers
+- Foundational or seminal works (if identifiable by title/author)
+
+Format for EACH reference:
 • Author(Year). Title. Source.
-  → [사실] (State only what is verifiable: e.g., appears in reference list, cited X times if explicitly shown)
-  → [추론] (Provide recommendation reason: e.g., foundational theory, key methodology, seminal work in the field)
+  → [사실] 참고문헌 목록에 포함됨
+  → [추론] <Provide specific reason: e.g., "최신 실증연구", "이론적 기초 제공", "핵심 방법론 제시", "분야의 권위자", "주요 저널 게재" etc.>
+
+Example:
+• Smith, J. (2020). Deep learning applications. Nature.
+  → [사실] 참고문헌 목록에 포함됨
+  → [추론] 최신 실증연구이며 Nature 게재로 높은 신뢰성
 
 [주요저널]
 • Journal Name 1 (XX회 출현)
 • Journal Name 2 (XX회 출현)
 • Journal Name 3 (XX회 출현)
-(List only if journal names are explicitly identifiable)
 
 [영향력있는저자]
 • Author 1 (XX회 출현)
 • Author 2 (XX회 출현)
 • Author 3 (XX회 출현)
-(List only if author names are clearly extractable)
 
 [출판물유형]
 • 저널논문: XX개
@@ -454,17 +462,11 @@ List up to 8 most significant references:
 • 학술대회: XX개
 • 학위논문: XX개
 • 기타: XX개
-(Count only based on explicit indicators)
 
 [검증노트]
-List any:
-- Ambiguous separations
-- Missing critical fields
-- Unparseable entries
-
-If any section cannot be determined, write "Cannot be determined from the given text.\""""}
+(List any issues if present, otherwise write "특이사항 없음")"""}
             ],
-            temperature=0.2,
+            temperature=0.3,
             max_tokens=3000
         )
         
